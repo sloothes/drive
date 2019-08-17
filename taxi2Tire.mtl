@@ -1,0 +1,13 @@
+# Blender MTL File: 'None'
+# Material Count: 1
+
+newmtl mat_0-taxi_cab.jpgt
+Ns 9.803922
+Ka 0.000000 0.000000 0.000000
+Kd 0.434536 0.434536 0.434536
+Ks 0.275871 0.275871 0.275871
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd taxi_cab.jpg

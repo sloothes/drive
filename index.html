@@ -1,0 +1,3214 @@
+<html>
+<head> 
+<title>World</title>
+<style>
+body{
+background:#fff;
+color: #fff;
+padding:0;
+margin:0;
+font-weight:bold;
+overflow:hidden;
+font-size:13px;
+}
+div{font-size:15px;text-align:left;opacity:1;}
+li{padding-top:0px;margin-top:0px;padding-bottom:0px;margin-bottom:0px;}
+ul{padding-top:0px;margin-top:0px;padding-bottom:0px;margin-bottom:0px;}
+</style>
+<link rel="icon" href="car3.png" type="image/png" />
+</head>
+
+<body style="background-image:url('loading.webp');background-repeat:no-repeat;background-size:cover;">
+
+<script>
+function loadingText(){document.write('<div id="loadiv" style="padding:20px;color:black;font-size:40px;font-family:monospace;font-weight:bold;;">Loading...<span style="font-size:20px;color:#ffe764;">(about 10MB)</span></div>');}
+loadingText();
+
+
+function el(a){return document.getElementById(a);}
+function da(a,b){if(el(a)){el(a).innerHTML=b;}}
+function elv(a){return document.getElementById(a).value;}
+function els(a){return document.getElementById(a).style;}
+function fixAngleDeg(a){if(a>180){a-=360;}else if(a<-Math.PI/2){a+=360;}return a;}
+function fixAngleRad(a){if(a>Math.PI){a-=Math.PI*2;}else if(a<-Math.PI){a+=Math.PI*2;}return a;}
+
+var heightLimit=1;
+var widthLimit=1;
+var SCREEN_HEIGHT=window.innerHeight*heightLimit;
+var SCREEN_WIDTH =window.innerWidth*widthLimit;
+
+</script>
+<script src="ammo.asm.js"></script><!-- bullet physics ported to javascript -->
+<script src="three3.js"></script><!-- 3d rendering library for javascript -->
+<script src="stats.min.js"></script><!-- frames per second and memory usage info -->
+<script src="Detector.js"></script><!-- message for browsers without webgl -->
+<script src="MTLLoader.js"></script><!-- material loader -->
+<script src="OBJLoader.js"></script><!-- .obj model loader -->
+<script src="dat.gui.js"></script><!-- user interface -->
+<script src="DecalGeometry.js"></script><!-- for putting decals on models -->
+
+<script>
+//use ctrl+shft+r to force a reload without cache
+
+if(!Detector.webgl){Detector.addGetWebGLMessage();}
+
+var mouseX=0;
+var mouseY=0;
+var mouseDragOn=false;
+var rightButtonDown=false;
+var viewHalfX=0;
+var viewHalfY=0;
+
+//the camera object, and key press events
+var camAndKeyFunction=function(){
+
+camera.eulerOrder='ZYX'; 
+container.setAttribute('tabindex',-1);
+
+this.onMouseWheel=function(event){
+event.preventDefault();
+event.stopPropagation();
+
+var delta=0;
+
+if(event.wheelDelta !== undefined){
+
+// WebKit / Opera / Explorer 9
+delta=event.wheelDelta;
+}else if(event.detail !== undefined){
+// Firefox
+delta=- event.detail;
+}
+
+if(delta>0){
+
+if(rightButtonDown||altKey){
+if(camHeight<maxCamHeight){
+camHeightUp=true; camHeightOld=camHeight; 
+}
+}else{
+if(camDist>minCamDist){
+camDistDown=true; camDistOld=camDist;
+}
+}
+
+} else if(delta<0){
+
+if(rightButtonDown||altKey){
+if(camHeight>minCamHeight){
+camHeightDown=true; camHeightOld=camHeight;
+}
+}else{
+if(camDist<maxCamDist){
+camDistUp=true; camDistOld=camDist; 
+}
+}
+}
+
+};//end on mouse wheel
+
+
+this.onMouseDown=function(event){
+pauser=false;
+container.focus();
+
+event.preventDefault();
+event.stopPropagation();
+
+switch(event.button){
+case 0: 
+break;
+case 2: 
+rightButtonDown=true;
+break;
+case 1: resetBulletObjectsBool=true; break;
+}
+
+mouseDragOn=true;
+};//end on mouse down
+
+
+
+this.onMouseUp=function(event){
+event.preventDefault();
+event.stopPropagation();
+
+switch(event.button){
+case 0: 
+break;
+case 2: 
+rightButtonDown=false;
+break;
+}
+
+mouseDragOn=false;
+};//end on mouse up
+
+
+
+this.onMouseMove=function(event ){
+container.focus();
+mouseX=event.pageX - container.offsetLeft - viewHalfX;
+mouseY=event.pageY - container.offsetTop - viewHalfY;
+
+
+if(camFollowCar||chaseCammer){
+if(mouseDragOn){
+if(!rightButtonDown){
+camRotateCar-=(mouseX-oldMouseX)*Math.PI/900;
+camRotateCar=fixAngleRad(camRotateCar);
+}else{
+camTilt-=(mouseY-oldMouseY)*Math.PI/900;
+camTilt=fixAngleRad(camTilt);
+}}}
+
+oldMouseX=mouseX;
+oldMouseY=mouseY;
+};//end on mouse move
+
+
+onKeyDowner=function(event){
+if(!typing){
+//event.preventDefault();
+if(event.key=='z'){altKey=true;}
+switch(event.key){
+
+
+case 'v':  
+if(camPresets<6){camPresets++;}else{camPresets=0;}
+if(camPresets!=6){camSwitcher(0);}
+switch(camPresets){
+case 0:
+camDist=camDistS; camHeight=camHeightS; camTilt=camTiltS; camRotateCar=0;
+break;
+case 1:
+camDist=5.65; camHeight=2.45; camTilt=-.54; camRotateCar=0;
+break;
+case 2:
+camDist=3.94; camHeight=2.45; camTilt=-.54; camRotateCar=Math.PI;
+break;
+case 3:
+camDist=3.94; camHeight=2.45; camTilt=-.49; camRotateCar=Math.PI/2;
+break;
+case 4:
+camDist=17.03; camHeight=12.52; camTilt=-.67; camRotateCar=0;
+break;
+case 5:
+camDist=31.45; camHeight=21.49; camTilt=-.58; camRotateCar=-Math.PI;
+break;
+case 6:
+camDist=camDistS; camHeight=camHeightS; camTilt=camTiltS; camRotateCar=0;
+camSwitcher(1);
+chaseStarter=true;
+break;
+}
+
+break;
+case 'b':
+if(chaseCammer){
+if(camZoomer>.3){camZoomer-=.1;}else{camZoomer=.3;}
+camera.zoom=camZoomer;
+camera.updateProjectionMatrix();
+}
+break;
+case 'n':
+if(chaseCammer){
+if(camZoomer<7){camZoomer+=.1;}else{camZoomer=7;}
+camera.zoom=camZoomer;
+camera.updateProjectionMatrix();
+}
+break;
+case 'y': 
+break;
+case 'u':
+
+
+switchWorlds();
+
+break;
+case 'ArrowUp': 
+case 'w': 
+moveCarForward[cci]=true;  
+iamaRobot=false;
+if(!engineSound.isPlaying){engineSound.play();}
+break;
+case 'ArrowLeft': 
+case 'a': 
+iamaRobot=false;
+steerCarLeft[cci]=true; 
+break;
+case 'ArrowDown': 
+case 's': 
+iamaRobot=false;
+moveCarBackward[cci]=true;
+if(!engineSound.isPlaying){engineSound.play();}
+break;
+case 'ArrowRight':
+case 'd': 
+iamaRobot=false;
+steerCarRight[cci]=true;
+break;
+case ' ': //spacebar
+gBreakingForce[cci]=maxBreakingForce[cci]*2; 
+gEngineForce[cci]=0.0;
+iamaRobot=false;
+break;
+case 'Escape': //esc
+break;
+case 'g': 
+decalRayCast();
+break;
+case 'h': //h is used to show/hide the dat.gui param tweaker
+guiF2.closed=true;guiF2.closed=false;
+break;
+case 'i':
+if(el('opener').style.visibility=='visible'){
+el('opener').style.visibility='hidden'
+}else{
+el('opener').style.visibility='visible'};
+break;
+case 'k': 
+shortcutSwitch();
+break;
+case 'l': 
+toggleScore();
+break;
+case 'm': 
+muted=!muted;
+if(muted){soundListener.setMasterVolume(0);}else{soundListener.setMasterVolume(1);}
+break;
+case 'o':
+muiSwitch();
+break;
+case 'p':
+muiSwitch();
+break;
+case '0':
+lifter=true;
+break;
+case '1':
+camSwitcher(0);
+break;
+case '2':
+camSwitcher(1);
+break;
+case '3':
+if(camid!==2){camSwitcher(2);}else{camSwitcher(1);}
+break;
+case '4':
+switchCars();
+break;
+case '5':
+skySwitcher();
+break;
+case '6':
+showFPS=!showFPS;
+statsSwitcher();
+break;
+case '7':
+roboCars=!roboCars;
+if(!roboCars){moveCarForward[cci]=false;}
+break;
+case '8':
+iamaRobot=!iamaRobot;
+if(iamaRobot){roboCars=true;}else{moveCarForward[cci]=false;steerCarLeft[cci]=false;steerCarRight[cci]=false;gVehicleSteering[cci]=0;}
+break;
+case '9':
+resetAllCars(); 
+break;
+case 't':
+break;
+case 'Alt': 
+pauser=!pauser;
+if(pauser){
+if(engineSound.isPlaying){engineSound.stop();}
+}else{
+if(!engineSound.isPlaying){engineSound.play();}
+}
+break;
+case 'PageUp': 
+pageUpper=true;
+break;
+case 'PageDown':
+pageDowner=true;
+break;
+
+}
+
+}
+event.repeat=false;
+};//end on key down
+
+
+
+
+onKeyUpper=function(event){
+if(event.key='z'){altKey=false;}
+switch(event.key){
+case '0':
+lifter=false;
+break;
+case 'ArrowUp': 
+case 'w': 
+moveCarForward[cci]=false; 
+break;
+
+case 'ArrowLeft': 
+case 'a': 
+steerCarLeft[cci]=false; 
+break;
+
+case 'ArrowDown': 
+case 's': 
+iamaRobot=false;
+moveCarBackward[cci]=false;
+break;
+
+case 'ArrowRight': 
+case 'd': 
+iamaRobot=false;
+steerCarRight[cci]=false;
+break;
+
+case 'PageUp': 
+pageUpper=false;
+break;
+case 'PageDown': 
+pageDowner=false;
+break;
+}
+
+};//end on key up 
+
+
+function contextmenu(event){event.preventDefault();}
+
+var _onMouseWheel = bind( this, this.onMouseWheel );
+var _onMouseMove = bind( this, this.onMouseMove );
+var _onMouseDown = bind( this, this.onMouseDown );
+var _onMouseUp = bind( this, this.onMouseUp );
+
+container.addEventListener( 'mousewheel', _onMouseWheel, false );
+container.addEventListener( 'mousemove', _onMouseMove, false );
+container.addEventListener( 'mousedown', _onMouseDown, false );
+container.addEventListener( 'mouseup', _onMouseUp, false );
+
+container.addEventListener( 'contextmenu', contextmenu, false );
+container.addEventListener( 'keydown', onKeyDowner, false );
+container.addEventListener( 'keyup', onKeyUpper, false );
+
+function bind(scope,fn){return function(){fn.apply(scope,arguments);};}
+
+this.update=function(delta){
+tv.setValue(0.0,-1.0,0.0);
+bodRot=m_carChassis[cci].getWorldTransform().getBasis().getColumn(1).dot(tv); 
+//if car rolls past threshold increase camLag
+if(bodRot>-.4){camLags=.001;}else{ camLags=camLag;}
+
+if(camFollowCar&&!chaseCammer){
+
+//for camera to follow car position and heading
+var qc=new THREE.Quaternion(0,0,0,1);
+if(carModel[cci][0]!=undefined){
+qc=carModel[cci][0].quaternion;
+}
+
+//radians
+carHeading=fixAngleRad((Math.PI+(Math.atan2(2*qc.y*qc.w-2*qc.x*qc.z , 1 - 2*(qc.y*qc.y) - 2*(qc.z*qc.z))))+camRotateCar);
+
+
+//delay factor results in side view of car when turns
+//radians
+camHeading=fixAngleRad(camHeading + camLags * fixAngleRad(carHeading - camHeading));
+
+//radians
+camera.rotation.x=camTilt;
+camera.rotation.y=camHeading;
+camera.rotation.z=0;
+
+camHeightAccelCalc();
+camDistAccelCalc();
+
+
+//camera position behind car
+followCamPos.setValue(
+carPos[cci].x()+Math.sin(fixAngleRad(Math.PI+camHeading))*-camDist,
+carPos[cci].y()+camHeight,
+carPos[cci].z()+Math.cos(fixAngleRad(Math.PI+camHeading))*-camDist
+);
+
+
+camera.position.x=followCamPos.x();
+camera.position.y=followCamPos.y();
+camera.position.z=followCamPos.z();
+
+
+}else if(!camFollowCar&&chaseCammer){
+
+
+//for camera to chase car as physics body
+if(chaseCammer){ 
+
+bodies[1].getMotionState().getWorldTransform(tranCam);
+
+
+chaseCamO=tranCam.getOrigin();
+m_carChassis[cci].getMotionState().getWorldTransform(tranChass);
+carO=tranChass.getOrigin();
+
+//camera should never go underground
+var toPointer=new Ammo.btVector3(chaseCamO.getX(),chaseCamO.getY()-200,chaseCamO.getZ());
+var rayer=new Ammo.ClosestRayResultCallback(chaseCamO,toPointer);
+dynamicsWorld.rayTest(chaseCamO,toPointer,rayer);
+if(rayer.hasHit()){
+groundY=rayer.get_m_hitPointWorld().getY()+3;
+}
+
+Ammo.destroy(toPointer); toPointer=null;
+Ammo.destroy(rayer); rayer=null;
+
+setChaseCam();
+
+xvelc=tCamPoint.x()-chaseCamO.x(); 
+yvelc=tCamPoint.y()-chaseCamO.y();
+zvelc=tCamPoint.z()-chaseCamO.z();
+
+
+
+//if(tCamPoint.distance(chaseCamO)>camDist){
+ctFac=1;
+tv.setValue(xvelc*ctFac, yvelc*ctFac, zvelc*ctFac);
+bodies[1].setLinearVelocity(tv);
+bodies[1].getMotionState().getWorldTransform(tranCam);
+//}
+chaseCamO=tranCam.getOrigin();
+
+camera.position.x=chaseCamO.x();
+camera.position.y=chaseCamO.y();
+camera.position.z=chaseCamO.z();
+
+
+if(camera.position.y<groundY){
+chaseCamO.setY(groundY);
+tranCam.setOrigin(chaseCamO);
+}
+
+bodies[1].setWorldTransform(tranCam);
+
+camera.lookAt( new THREE.Vector3(carPos[cci].x(),carPos[cci].y(),carPos[cci].z()) );
+
+
+
+if(chaseStarter){
+
+setChaseCam();
+tranCam.setIdentity();
+tranCam.setOrigin(tCamPoint);
+
+if(!worldSwitching[cci]){chaseStarter=false;}
+}//end if chaseStarter
+
+
+bodies[1].setWorldTransform(tranCam);
+
+
+}//end if chase cammer
+
+
+}else if(!camFollowCar&&!chaseCammer){ //camera stays still
+camera.lookAt( new THREE.Vector3(carPos[cci].x(),carPos[cci].y(),carPos[cci].z()) );
+}//end not following car, camera could be still or chasing
+
+if(pageUpper){
+if(camHeight<maxCamHeight){
+camHeight*=1.05; 
+}else{camHeight=maxCamHeight;}
+
+}else if(pageDowner){
+if(camHeight>minCamHeight){
+camHeight*=.95;
+}else{camHeight=minCamHeight;}
+}
+
+};//end update
+
+}; //end camera controls contstructor function
+
+
+function camHeightAccelCalc(){
+if(camHeightUp&&camHeight-camHeightOld<camHeight*.1){camHeightAccel+=.001; camHeightDown=false;
+}else if(camHeightDown&&camHeight-camHeightOld>camHeight*-.1){camHeightAccel-=.001; camHeightUp=false;
+}else{ camHeightUp=false; camHeightDown=false; 
+if(camHeightAccel>1){camHeightAccel-=.001;}
+else if(camHeightAccel<1){camHeightAccel+=.001;}
+if(Math.abs(camHeightAccel-1)<.001){camHeightAccel=1;}
+}
+camHeight*=camHeightAccel;
+}//end camHeightAccelCalc()
+
+
+function camDistAccelCalc(){
+if(camDistUp&&camDist-camDistOld<camDist*.1){camDistAccel+=.002; camDistDown=false;
+}else if(camDistDown&&camDist-camDistOld>camDist*-.1){camDistAccel-=.002; camDistUp=false;
+}else{ camDistUp=false; camDistDown=false; 
+if(camDistAccel>1){camDistAccel-=.001;}
+else if(camDistAccel<1){camDistAccel+=.001;}
+if(Math.abs(camDistAccel-1)<.001){camDistAccel=1;}
+}
+camDist*=camDistAccel;
+}//end camDistAccelCalc()
+
+function switchWorlds(){
+//for testing switching world models
+for(var i=0;i<numWorldModels;i++){
+scene.remove(worldModel[i]); 
+dynamicsWorld.removeRigidBody(triMeshBody[i]);
+}
+triMeshBody=[];
+if(altKey){
+worldID--;if(worldID<0){worldID=worldFiles.length-1;}
+}else{
+worldID++;if(worldID>=worldFiles.length){worldID=0;}
+}
+
+for(var i=0;i<numWorldModels;i++){
+objWorldModelLoader(i,worldFiles[worldID]+'.obj',worldFiles[worldID]+'.mtl',worldScale,true);
+}
+//da('tester', worldID);
+for(var c=0;c<numCars;c++){
+
+worldSwitching[c]=true;
+
+resetVehicle(c);
+
+coordi[c]=0;
+carPlaces[c].place=0;
+for(var i=0;i<numCoords;i++){
+if(c>0&&allCoordSame){
+coordx[c][i]=coordx[0][i];
+coordz[c][i]=coordz[0][i];
+}else{
+coordx[c][i]=randRange(-coordRange,coordRange);
+coordz[c][i]=randRange(-coordRange,coordRange);
+}}
+
+}//end num cars loop
+scoreUpdated[0]=false;score(0);
+
+if(chaseCammer){chaseStarter=true;}
+mandalaSet=false;
+decalRayCast();
+}//end switch worlds
+
+
+//for setting initial position of chase cam behind followed vehicle
+function setChaseCam(){
+camDist=camDistS; camHeight=camHeightS; camTilt=camTiltS; camRotateCar=0;
+
+carRot=m_carChassis[cci].getWorldTransform().getBasis();
+c2=new Ammo.btVector3(0,camHeightS,-camDistS);
+var camPointer=new Ammo.btVector3(
+carRot.getRow(0).x()*c2.x()+carRot.getRow(0).y()*c2.y()+carRot.getRow(0).z()*c2.z(),
+carRot.getRow(1).x()*c2.x()+carRot.getRow(1).y()*c2.y()+carRot.getRow(1).z()*c2.z(),
+carRot.getRow(2).x()*c2.x()+carRot.getRow(2).y()*c2.y()+carRot.getRow(2).z()*c2.z()
+);
+
+var carOrigin=m_carChassis[cci].getWorldTransform().getOrigin();
+tCamPoint.setValue(
+camPointer.x()+carOrigin.x(),
+camPointer.y()+carOrigin.y(),
+camPointer.z()+carOrigin.z()
+);
+
+
+tv.setValue(0,0,0);
+bodies[1].setLinearVelocity(tv);
+bodies[1].setAngularVelocity(tv);
+
+camera.position.x=tCamPoint.x();
+camera.position.y=tCamPoint.y();
+camera.position.z=tCamPoint.z();
+camera.lookAt( new THREE.Vector3(carOrigin.x(),carOrigin.y(),carOrigin.z()) );
+
+}//end set chase cam
+
+var container;
+var timely2;
+var resettingCars=false;
+
+var mandalaSet=false;
+var camZoomer=1;
+
+var decalsMandala=[];
+var decalPosition=new THREE.Vector3();
+var decalSizer=new THREE.Vector3(20,20,20);
+var decalOrientation=new THREE.Euler(-Math.PI/2, 0, 0);
+var mandalaLoader=new THREE.TextureLoader();
+var decalTextureMandala=mandalaLoader.load('mandala.png' );
+
+var decalMaterialMandala=new THREE.MeshPhongMaterial( {
+color: 0x555555,
+specular: 0x111111,
+map:decalTextureMandala,
+bumpMap:decalTextureMandala,
+bumpScale:.3,
+opacity:1,
+shininess: 200,
+transparent: true,
+depthTest: true,
+depthWrite: false,
+polygonOffset: true,
+polygonOffsetFactor:-4,
+wireframe: false
+} );
+
+
+
+
+var textureLoader_d=new THREE.TextureLoader();
+var decalDiffuse=textureLoader_d.load( 'track5.png' );
+var decalNormal=textureLoader_d.load( 'track5.png' );
+
+var decalMaterial=new THREE.MeshPhongMaterial( {
+specular: 0x444444,
+map: decalDiffuse,
+//normalMap: decalNormal,
+//normalScale: new THREE.Vector2( 1, 1 ),
+shininess: 900,
+transparent: true,
+depthTest: true,
+depthWrite: false,
+polygonOffset: true,
+polygonOffsetFactor: - 4,
+wireframe: false,
+opacity:.4
+} );
+
+var loadingDone=false;
+var showScore=false;
+var scoreUpdated=[];
+var muted=false;
+var camid=0;
+var showShortcuts=true;
+var showMui=true;
+var tv=new Ammo.btVector3(0,0,0);
+var tCamPoint=new Ammo.btVector3(0,0,0);
+var carHit=false;
+var dp;
+var numMan; 
+var num_contacts=0;  
+var bodyA;
+var bodyB;   
+var carHitForce=[];
+var manifolder=[];
+var highestHitForce=0;
+
+var decalWorldID=0;
+var downRayDir=new Ammo.btVector3(0,0,0);
+var worldHidden=[];
+var numWorldModels=9;
+var frontRay;
+var frontRayDir=new Ammo.btVector3(0,0,0);
+
+var soundListener=new THREE.AudioListener();
+soundListener.setMasterVolume(0);
+var engineSound=new THREE.PositionalAudio( soundListener );
+var skidSound=new THREE.PositionalAudio( soundListener );
+var hitSound=new THREE.PositionalAudio( soundListener );
+var hitSound2=new THREE.PositionalAudio( soundListener );
+var hitSound3=new THREE.PositionalAudio( soundListener );
+var hitSound4=new THREE.PositionalAudio( soundListener );
+var hitSound5=new THREE.PositionalAudio( soundListener );
+var popSound=new THREE.PositionalAudio( soundListener );
+
+var firstSkid=true;
+var engineSoundAdded=false;
+var audioLoader=new THREE.AudioLoader();
+
+var hitSwitch=true;
+var minPitch=.4;
+var engPitch=minPitch;
+var skidVol=0;
+var accelVol=.8;
+var hitVol=1;
+/*
+var filter=soundListener.context.createBiquadFilter();
+filter.frequency.value=500;
+filter.type='lowpass'; //lowpass, highpass, bandpass, lowshelf, highshelf, peaking, notch, allpass
+filter.Q=3;
+*/
+
+audioLoader.load( 'sounds/139770_Car_Toyota_Starlet_Driving_Loop_01.ogg', function(buffer){
+engineSound.setBuffer(buffer);
+engineSound.setRefDistance(3);
+engineSound.setLoop( true );
+engineSound.setVolume( engPitch );
+engineSound.setPlaybackRate(engPitch);
+//engineSound.setFilter(filter);
+});
+
+audioLoader.load( 'sounds/104916_Wheel_Skids_2.ogg', function(buffer){
+skidSound.setBuffer(buffer);
+skidSound.setRefDistance(3);
+skidSound.setLoop( false );
+skidSound.setVolume( skidVol );
+skidSound.setPlaybackRate(.5);
+});
+
+//151696_Wreck_Metal_Alternator_Crash_34.ogg
+audioLoader.load( 'sounds/151696_Wreck_Metal_Alternator_Crash_34.ogg', function(buffer){
+hitSound.setBuffer(buffer);
+hitSound.setRefDistance(3);
+hitSound.setLoop( false );
+hitSound.setVolume( hitVol );
+});
+//boing
+audioLoader.load( 'sounds/boing.ogg', function(buffer){
+hitSound2.setBuffer(buffer);
+hitSound2.setRefDistance(3);
+hitSound2.setLoop( false );
+hitSound2.setVolume( hitVol );
+hitSound2.setPlaybackRate(.7);
+});
+
+
+//151669_Wreck_Metal_Alternator_Crash_07.ogg
+audioLoader.load( 'sounds/thump.ogg', function(buffer){
+hitSound5.setBuffer(buffer);
+hitSound5.setRefDistance(3);
+hitSound5.setLoop( false );
+hitSound5.setVolume( hitVol );
+hitSound5.setPlaybackRate(.7);
+});
+
+
+audioLoader.load( 'sounds/pop.ogg', function(buffer){
+popSound.setBuffer(buffer);
+popSound.setRefDistance(3);
+popSound.setLoop( false );
+popSound.setVolume( hitVol );
+popSound.setPlaybackRate(.7);
+});
+
+//51782_Crash_auto_car_crash_impact_glass_metal_smash.ogg
+audioLoader.load( 'sounds/rattle.ogg', function(buffer){
+hitSound3.setBuffer(buffer);
+hitSound3.setRefDistance(3);
+hitSound3.setLoop( false );
+hitSound3.setVolume( hitVol );
+hitSound3.setPlaybackRate(1);
+});
+
+audioLoader.load( 'sounds/151756_Wreck_Metal_Part_Impact_Metal_06.ogg', function(buffer){
+hitSound4.setBuffer(buffer);
+hitSound4.setRefDistance(3);
+hitSound4.setLoop( false );
+hitSound4.setVolume( hitVol );
+hitSound4.setPlaybackRate(.7);
+});
+
+
+var positioner=[
+new Ammo.btVector3(0,-38,0),//center
+new Ammo.btVector3(-880,-38,0), //forward
+new Ammo.btVector3(880,-38,0), //back
+new Ammo.btVector3(0,-38,880), //left
+new Ammo.btVector3(0,-38,-880), //right
+new Ammo.btVector3(-880,-38,880), //forward-left
+new Ammo.btVector3(-880,-38,-880), //forward-right
+new Ammo.btVector3(880,-38,880), //back-right
+new Ammo.btVector3(880,-38,-880) //back-left
+];
+var positionerSave=[];
+for(var i=0;i<numWorldModels;i++){
+positionerSave[i]=new Ammo.btVector3(positioner[i].x(),positioner[i].y(),positioner[i].z());
+worldHidden[i]=false;
+}
+var worldSet=false;
+var cci=3;
+var dec=new Ammo.btVector3(0,0,0);
+var dec2=new Ammo.btVector3(0,0,0);
+var dec3=new Ammo.btVector3(0,0,0);
+var smo=new Ammo.btVector3(0,0,0);
+var smo2=new Ammo.btVector3(0,0,0);
+var smo3=new Ammo.btVector3(0,0,0);
+var smo4=new THREE.Vector3(0,0,0);
+var s_material, s_material2, s_material3, smoker, smoker2, smoker3, smoker4, sparksMesh; 
+var smokerCount=0, smokerCount2=6, frame=[], explo=[],opacDown=false,opac=.1, startSmoker=false;
+var sparks=[], sparkler=false, hitPoint=new Ammo.btVector3(0,0,0);
+var sparksCount=0;
+var smokerCount3=[0,5];
+var smoUp=[true,true];
+var smoker2Scale=.1, smoker2Grow=0;
+var smoker3Scale=.1, smoker3Grow=0;
+var carVel=new THREE.Vector3(0,0,0),oldCarPos=new THREE.Vector3(0,0,0),oldCarPos2=new THREE.Vector3(0,0,0),decRot=0;
+var decal;
+var decalCounter=0;
+var decals=[];
+var material_d;
+var p_d=new THREE.Vector3( 0, 0, 0 );
+var r_d=new THREE.Vector3( 0, 0, 0 );
+var r_d=new THREE.Euler( 0, 0, 0, 'XYZ' );
+var s_d=new THREE.Vector3( 90, 90, 90 );
+var up_d=new THREE.Vector3( 0, 1, 0 );
+var check_d=new THREE.Vector3( 1, 1, 1 );
+
+var framesPerSecond=100;
+var objLoader,mtlLoader;
+var worldScale=22; 
+var worldWidth=500;
+var fogColor=new THREE.Color(0xae9a7b);//ae9a7b
+var ray,groundY=0;
+var xvelc=0,yvelc=0,zvelc=0, ctFac=1.35;
+var tranCam=new Ammo.btTransform();
+var tranChass=new Ammo.btTransform();
+var chaseCamO=new Ammo.btVector3();
+var toPoint=new Ammo.btVector3();
+var carO=new Ammo.btVector3();
+var carRot=new Ammo.btMatrix3x3();
+var camPointer=new Ammo.btMatrix3x3();
+var tCamPoint=new Ammo.btVector3();
+var bodRot=-1;
+var camStop=false;
+var carColorSetter=false;
+var rimColorSetter=false;
+var fogFar=500;
+var lifter=false;
+var stats;
+var typing=false;
+var camera, scene, renderer, hemiLight, dirLight, lightSet=0, pointLight;
+var geometry, mat2, mat3, mat4, mat5, mesh, matBlank;
+var clock=new THREE.Clock();
+var altKey=false;
+var bullStop=false;
+var followCamPos=new Ammo.btVector3(0,0,0);
+var carModRot=new Ammo.btQuaternion(0,0,0,1);
+var carHeading=0.0;
+var camHeading=0.0;
+var pageUpper=false,pageDowner=false;
+var camHeight=4.0, camHeightUp=false, camHeightDown=false, camHeightOld=camHeight, camHeightAccel=1.0;
+var camPresets=0;
+var camDist=8.0, camDistUp=false, camDistDown=false, camDistOld=camDist, camDistAccel=1.0;
+var maxCamDist=25,minCamDist=4,minCamHeight=.1,maxCamHeight=20;
+var camHeightS=camHeight, camDistS=camDist;
+var camTilt=-23*Math.PI/180; camTiltS=camTilt;
+var dt=0.0;
+var camFollowCar=false;
+var chaseCammer=true,chaseStarter=chaseCammer;
+var chaseTick=0;
+var camRotateCar=0.0;
+var oldMouseX=0.0;
+var oldMouseY=0.0;
+var camInd=0;
+var cubeReflect;
+var objLoader;
+var mtlLoader;
+var worldMat=[];
+var carColorInd=0;
+var numCarColors=12;
+var showSky=true;
+var worldMatModified=false;
+var pauser=false;
+var camLag=.035,camLags=camLag;
+var showFPS=false;
+var md;
+
+var worldModel=[];
+var triMeshModel=[];
+var triMeshModelMat=[];
+
+var numCars=6; if(cci>=numCars){cci=numCars-1;}
+var carNames=['yellow', 'van', 'pickup', 'hummer', 'lada', 'taxi'];
+
+var carPlaces=[
+{name:'yellow', place:0},
+{name:'van', place:0},
+{name:'pickup', place:0},
+{name:'hummer', place:0},
+{name:'lada', place:0},
+{name:'taxi', place:0}
+];
+
+function sortPlaces(a,b){
+if(a.place<b.place){return 1;}
+if(a.place>b.place){return -1;}
+return 0;
+}
+
+var numCarModels=2;
+var carModel=[];
+var tireClones=[];
+var hubClones=[];
+var objFile=[];
+var mtlFile=[];
+var objScales=[];
+var worldSwitching=[];
+var carHeightAboveGround=[];
+
+for(var c=0;c<numCars;c++){
+carHeightAboveGround[c]=0;
+worldSwitching[c]=true;
+scoreUpdated[c]=false;
+
+objScales[c]=[.57,.57];
+
+if(c==0){
+objFile[c]=['russian.obj','russianTire.obj'];
+mtlFile[c]=['russian.mtl','russianTire.mtl'];
+}else if(c==1){
+objFile[c]=['van.obj','vanTire.obj'];
+mtlFile[c]=['van.mtl','vanTire.mtl'];
+}else if(c==2){
+objFile[c]=['pickup2.obj','pickup2Tire.obj'];
+mtlFile[c]=['pickup2.mtl','pickup2Tire.mtl'];
+}else if(c==3){
+objFile[c]=['hummer.obj','hummerTire.obj'];
+mtlFile[c]=['hummer.mtl','hummerTire.mtl'];
+}else if(c==4){
+objFile[c]=['ladavaz.obj','ladavazTire.obj'];
+mtlFile[c]=['ladavaz.mtl','ladavazTire.mtl'];
+}else{
+objFile[c]=['taxi2.obj','taxi2Tire.obj'];
+mtlFile[c]=['taxi2.mtl','taxi2Tire.mtl'];
+}
+//rusty
+
+
+}//end num cars
+
+//bullet init
+var camPos=new Ammo.btVector3(0,0,0);
+var ACTIVE_TAG=1;
+var ISLAND_SLEEPING=2;
+var WANTS_DEACTIVATION=3;
+var DISABLE_DEACTIVATION=4;
+var DISABLE_SIMULATION=5;
+
+var numObjects=2;//ground is 0, camera is 1
+var resetBulletObjectsBool=true;
+
+var collisionConfiguration= new Ammo.btDefaultCollisionConfiguration();
+var dispatcher= new Ammo.btCollisionDispatcher(collisionConfiguration);
+//var overlappingPairCache= new Ammo.btDbvtBroadphase();
+var worldMin=new Ammo.btVector3(-1000,-1000,-1000);
+var worldMax=new Ammo.btVector3(1000,1000,1000);
+var overlappingPairCache= new Ammo.btAxisSweep3(worldMin,worldMax);
+var solver= new Ammo.btSequentialImpulseConstraintSolver();
+
+var dynamicsWorld= new Ammo.btDiscreteDynamicsWorld(
+dispatcher, 
+overlappingPairCache, 
+solver, 
+collisionConfiguration
+);
+
+//real simple
+function triMeshBuilder(model,scale,positioner){ 
+var trimesh=new Ammo.btTriangleMesh();
+var v=model.children[0].geometry.attributes.position.array;
+var vcount=v.length;
+for(c=0;c<vcount;c+=9){
+var v0=v[c]*scale;
+var v1=v[c+1]*scale;
+var v2=v[c+2]*scale;
+var v3=v[c+3]*scale;
+var v4=v[c+4]*scale;
+var v5=v[c+5]*scale;
+var v6=v[c+6]*scale;
+var v7=v[c+7]*scale;
+var v8=v[c+8]*scale;
+
+//need 9 numbers per triangle
+trimesh.addTriangle(
+new Ammo.btVector3(v0,v1,v2),
+new Ammo.btVector3(v3,v4,v5),
+new Ammo.btVector3(v6,v7,v8)
+);
+
+}//end all vertex coordinates loop
+
+useQuantization=true;
+var concaveShape=new Ammo.btBvhTriangleMeshShape(trimesh, useQuantization);
+triMeshBodyTrans.setIdentity();
+triMeshBodyTrans.setOrigin(positioner);
+motionStated=new Ammo.btDefaultMotionState(triMeshBodyTrans);
+tv.setValue(0,0,0);
+tbody=new Ammo.btRigidBody(0, motionStated, concaveShape, tv);
+tbody.setCollisionFlags(tbody.getCollisionFlags()|1);
+tbody.setActivationState(DISABLE_DEACTIVATION);
+tbody.setFriction(.1);
+dynamicsWorld.addRigidBody(tbody);
+triMeshBody.push(tbody);
+
+}//end tri mesh builder
+
+/*//for reference
+CF_STATIC_OBJECT= 1,
+CF_KINEMATIC_OBJECT= 2,
+CF_NO_CONTACT_RESPONSE=4,
+CF_CUSTOM_MATERIAL_CALLBACK=8,//this allows per-triangle material (friction/restitution)
+CF_CHARACTER_OBJECT=16,
+*/
+
+
+var maxSpeed=[];
+var goingTooFast=[];
+var spinningTooFast=[];
+var rightIndex=0;
+var upIndex=1;
+var forwardIndex=2;
+var wheelDirectionCS0=new Ammo.btVector3(0,-1,0);
+var wheelTrans=new Ammo.btTransform();
+var wheelAxleCS=new Ammo.btVector3(-1,0,0);
+var gEngineForce=[];
+var gBreakingForce=[];
+var turboForce=1.7;
+var maxEngineForce=[];
+var maxBreakingForce=[];
+var gVehicleSteering=[];
+
+var steeringIncrement=[];
+var steeringClamp=[];
+var steeringReturnRate=[];
+var wheelRadius=[.36,.42,.36,.41,.36,.36,.36];
+var wheelRadiusS=[.36,.42,.36,.41,.36,.36,.36];
+var wheelWidth=[.2,.5,.2,-.05,.2,.2,.2];
+var frictionSlip=[];
+var rearWheelFriction=[];
+
+var suspensionStiffness=[58.0, 45.0, 58.0, 36.0, 58.0, 58.0, 58.0];
+var suspensionDamping=[];
+var suspensionCompression =[];
+var rollInfluence=[.01,.01,.01,.01,.01,.01,.01];
+var maxSuspensionTravelCm=[];
+var maxSuspensionForce=[];
+var CUBE_HALF_EXTENTS=[ .96, 1.12, .97, 1., .94 , .99, .99];
+var suspensionRestLength=[1.1, 1.05, 1.1, 1.25, 1.1, 1.2, 1.2];
+var connectionHeight=[];;
+
+var kmh=[];
+var lastKmh=[];
+var roboCars=true, iamaRobot=true;
+var steering=[];
+var accelerating=[];
+var moveCarForward=[];
+var moveCarBackward=[];
+var steerCarLeft=[];
+var steerCarRight=[];
+var m_tuning;
+
+var carHeading2=0.0;
+var coordi=[];
+var coordRange=300;
+var numCoords=100;
+var coordx=[];
+var coordz=[];
+var tv3=new THREE.Vector3(0,0,0);
+var bodRotTick=[];
+
+var m_carChassis=[];
+var m_vehicle=[];
+var carPos=[];
+var carMat=[];
+var carColor=[];
+var rimColor=[];
+var chassisWorldTrans=[];
+var tuneup=[];
+var carObjects=[];
+var allCoordSame=true;
+
+for(var c=0;c<numCars;c++){
+
+
+
+bodRotTick[c]=0;
+coordi[c]=0;
+coordx[c]=[];
+coordz[c]=[];
+
+for(var i=0;i<numCoords;i++){
+if(c>0&&allCoordSame){
+coordx[c][i]=coordx[0][i];
+coordz[c][i]=coordz[0][i];
+}else{
+coordx[c][i]=randRange(-coordRange,coordRange);
+coordz[c][i]=randRange(-coordRange,coordRange);
+}
+}
+
+
+maxSpeed[c]=150.0;
+goingTooFast[c]=false;
+spinningTooFast[c]=false;
+kmh[c]=.00001;
+lastKmh[c]=kmh[c];
+steering[c]=false;
+accelerating[c]=false;
+moveCarForward[c]=false;
+moveCarBackward[c]=false;
+steerCarLeft[c]=false;
+steerCarRight[c]=false;
+
+gEngineForce[c]=0;
+gBreakingForce[c]=0;
+gVehicleSteering[c]=0;
+
+maxEngineForce[c]=8000.0;
+maxBreakingForce[c]=maxEngineForce[c]*2;
+steeringIncrement[c]=0.09;
+steeringClamp[c]=.44;
+steeringReturnRate[c]=.6;
+frictionSlip[c]=3.5;
+rearWheelFriction[c]=4.5;
+suspensionCompression[c]=2.4;
+maxSuspensionTravelCm[c]=1500.0;
+maxSuspensionForce[c]=50000.0;
+connectionHeight[c]=1.2;
+suspensionDamping[c]=4;
+
+carObjects[c]={};
+m_carChassis[c]=[];
+m_vehicle[c]=[];
+carModel[c]=[];
+tireClones[c]=[];
+hubClones[c]=[];
+carPos[c]=new Ammo.btVector3(0,0,0);
+carMat[c]=[];
+if(c==cci){
+carColor[c]=new THREE.Color("rgb(95,118,103)");
+rimColor[c]=new THREE.Color("rgb(90,90,90)");
+}else{
+carColor[c]=new THREE.Color("rgb(90,90,80)");
+rimColor[c]=new THREE.Color("rgb(80,80,80)");
+}
+chassisWorldTrans[c]=new Ammo.btTransform();
+tuneup[c]=false;
+}//num cars loop
+
+
+var paramTweaker=function(){
+this.ShortCut='H Key Toggles This Tuner Panel';
+this.maxSpeed=maxSpeed[cci];
+this.maxEngineForce=maxEngineForce[cci];
+this.maxBreakingForce=maxBreakingForce[cci];
+this.steeringIncrement=steeringIncrement[cci];
+this.steeringClamp=steeringClamp[cci];
+this.steeringReturnRate=steeringReturnRate[cci];
+this.wheelRadius=wheelRadius[cci];
+this.wheelWidth=wheelWidth[cci];
+this.frictionSlip=frictionSlip[cci];
+this.rearWheelFriction=rearWheelFriction[cci];
+this.suspensionStiffness=suspensionStiffness[cci];
+this.suspensionDamping=suspensionDamping[cci];
+this.suspensionCompression=suspensionCompression[cci];
+this.rollInfluence=rollInfluence[cci];
+this.suspensionRestLength=suspensionRestLength[cci];
+this.maxSuspensionTravelCm=maxSuspensionTravelCm[cci];
+this.maxSuspensionForce=maxSuspensionForce[cci];
+this.CUBE_HALF_EXTENTS=CUBE_HALF_EXTENTS[cci];
+this.connectionHeight=connectionHeight[cci];
+};//end param tweaker
+
+var pt=new paramTweaker();
+var gui=new dat.GUI();
+dat.GUI.toggleHide();
+
+var guiF2=gui.addFolder('Vehicle Tuner');
+guiF2.closed=false;
+guiF2.add(pt, 'ShortCut');
+
+guiF2.add(pt, 'maxSpeed',1,230).step(1).onFinishChange(
+function(){maxSpeed[cci]=pt.maxSpeed;});
+
+guiF2.add(pt, 'maxEngineForce',1,12000).step(20).onFinishChange(
+function(){maxEngineForce[cci]=pt.maxEngineForce;});
+
+guiF2.add(pt, 'maxBreakingForce',1,12000).step(10).onFinishChange(
+function(){maxBreakingForce[cci]=pt.maxBreakingForce;});
+
+guiF2.add(pt, 'steeringIncrement',.005,.2).step(.001).onFinishChange(
+function(){steeringIncrement[cci]=pt.steeringIncrement;});
+
+guiF2.add(pt, 'steeringClamp',0,1).step(.01).onFinishChange(
+function(){steeringClamp[cci]=pt.steeringClamp;});
+
+guiF2.add(pt, 'steeringReturnRate',0,1).step(.01).onFinishChange(
+function(){steeringReturnRate[cci]=pt.steeringReturnRate;});
+
+guiF2.add(pt, 'wheelRadius',.01,3).step(.01).onFinishChange(
+function(){wheelRadius[cci]=pt.wheelRadius;applyTuneUp();
+var ws=objScales[cci][1]+(wheelRadius[cci]-wheelRadiusS[cci])*1.2;
+carModel[cci][1].scale.set(ws,ws,ws);
+for(var i=0;i<3;i++){tireClones[cci][i].scale.set(ws,ws,ws);}
+ws=null;
+});
+
+guiF2.add(pt, 'wheelWidth',-2,1).step(.001).onFinishChange(
+function(){wheelWidth[cci]=pt.wheelWidth;applyTuneUp();});
+
+guiF2.add(pt, 'frictionSlip',0,10).step(.1).onFinishChange(
+function(){frictionSlip[cci]=pt.frictionSlip;applyTuneUp();});
+
+guiF2.add(pt, 'rearWheelFriction',0,10).step(.1).onFinishChange(
+function(){rearWheelFriction[cci]=pt.rearWheelFriction;applyTuneUp();});
+
+guiF2.add(pt, 'suspensionStiffness',0,500).step(.1).onFinishChange(
+function(){suspensionStiffness[cci]=pt.suspensionStiffness;applyTuneUp();});
+
+guiF2.add(pt, 'suspensionDamping',0,100).step(.5).onFinishChange(
+function(){suspensionDamping[cci]=pt.suspensionDamping;applyTuneUp();});
+
+guiF2.add(pt, 'suspensionCompression',0,100).step(.1).onFinishChange(
+function(){suspensionCompression[cci]=pt.suspensionCompression;applyTuneUp();});
+
+guiF2.add(pt, 'rollInfluence',0.0,5.0).step(.001).onFinishChange(
+function(){rollInfluence[cci]=pt.rollInfluence;applyTuneUp();});
+
+guiF2.add(pt, 'suspensionRestLength',0,10).step(.01).onFinishChange(
+function(){suspensionRestLength[cci]=pt.suspensionRestLength;applyTuneUp();});
+
+guiF2.add(pt, 'maxSuspensionTravelCm',0,5000).step(5).onFinishChange(
+function(){maxSuspensionTravelCm[cci]=pt.maxSuspensionTravelCm;applyTuneUp();});
+
+guiF2.add(pt, 'maxSuspensionForce',0,50000).step(10).onFinishChange(
+function(){maxSuspensionForce[cci]=pt.maxSuspensionForce;applyTuneUp();});
+
+guiF2.add(pt, 'CUBE_HALF_EXTENTS',0,3).step(.01).onFinishChange(
+function(){CUBE_HALF_EXTENTS[cci]=pt.CUBE_HALF_EXTENTS;applyTuneUp();});
+
+guiF2.add(pt, 'connectionHeight',0,3).step(.01).onFinishChange(
+function(){connectionHeight[cci]=pt.connectionHeight;applyTuneUp();});
+
+gui.domElement.onmouseover=function(){typing=true;}
+gui.domElement.onmouseout=function(){typing=false;}
+
+function applyTuneUp(){
+for(var c=0;c<numCars;c++){
+dynamicsWorld.removeVehicle(m_vehicle[c]);
+tuneup[c]=true;
+makeVehicle(c);
+}
+
+}//end tweak
+
+//init vehicle
+function initVehicle(c){
+var startTransform=new Ammo.btTransform();
+startTransform.setIdentity();
+tv.setValue(1.2, .5, 2.4);
+var chassisShape=new Ammo.btBoxShape(tv);
+var compound=new Ammo.btCompoundShape();
+var localTrans=new Ammo.btTransform();
+localTrans.setIdentity();
+tv.setValue(0,1,0);
+localTrans.setOrigin(tv);
+compound.addChildShape(localTrans,chassisShape);
+mass=680;
+
+var localInertia= new Ammo.btVector3(1,1,1 );
+compound.calculateLocalInertia(mass,localInertia);
+var myMotionState=new Ammo.btDefaultMotionState(startTransform);
+var rbInfo= new Ammo.btRigidBodyConstructionInfo(mass, myMotionState, compound, localInertia);
+m_carChassis[c]= new Ammo.btRigidBody(rbInfo);
+m_carChassis[c].setFriction(1);
+dynamicsWorld.addRigidBody(m_carChassis[c]);
+var ptr= m_carChassis[c].a || m_carChassis[c].ptr;
+carObjects[c][ptr]=m_carChassis[c];
+makeVehicle(c);
+Ammo.destroy(localInertia); localInertia=null;
+//Ammo.destroy(startTransform); startTransform=null;
+}//end init vehicle
+
+
+// create vehicle
+function makeVehicle(c){
+m_tuning=new Ammo.btVehicleTuning();
+m_tuning.set_m_suspensionStiffness( suspensionStiffness[c] );
+m_tuning.set_m_suspensionCompression( suspensionCompression[c] );
+m_tuning.set_m_suspensionDamping( suspensionDamping[c] );
+m_tuning.set_m_maxSuspensionTravelCm( maxSuspensionTravelCm[c] );
+m_tuning.set_m_frictionSlip( frictionSlip[c] );
+m_tuning.set_m_maxSuspensionForce( maxSuspensionForce[c] );
+
+m_vehicleRayCaster=new Ammo.btDefaultVehicleRaycaster(dynamicsWorld);
+m_vehicle[c]=new Ammo.btRaycastVehicle(m_tuning,m_carChassis[c],m_vehicleRayCaster);
+m_carChassis[c].setActivationState(DISABLE_DEACTIVATION);
+dynamicsWorld.addVehicle(m_vehicle[c]);
+
+//choose coordinate system
+m_vehicle[c].setCoordinateSystem(rightIndex,upIndex,forwardIndex);
+
+//front wheels
+var isFrontWheel=true;
+var connectionPointCS0=new Ammo.btVector3(0,0,0);
+
+connectionPointCS0.setValue(CUBE_HALF_EXTENTS[c]-(0.3*wheelWidth[c]),connectionHeight[c],2*CUBE_HALF_EXTENTS[c]-wheelRadius[c]);
+
+m_vehicle[c].addWheel(connectionPointCS0,wheelDirectionCS0,wheelAxleCS,suspensionRestLength[c],wheelRadius[c],m_tuning,isFrontWheel);
+
+
+connectionPointCS0.setValue(-CUBE_HALF_EXTENTS[c]+(0.3*wheelWidth[c]),connectionHeight[c],2*CUBE_HALF_EXTENTS[c]-wheelRadius[c]);
+
+m_vehicle[c].addWheel(connectionPointCS0,wheelDirectionCS0,wheelAxleCS,suspensionRestLength[c],wheelRadius[c],m_tuning,isFrontWheel);
+
+//rear wheels
+isFrontWheel=true; //for all wheel drive?
+
+m_tuning.set_m_frictionSlip( rearWheelFriction[c] );
+
+connectionPointCS0.setValue(-CUBE_HALF_EXTENTS[c]+(0.3*wheelWidth[c]),connectionHeight[c],-2*CUBE_HALF_EXTENTS[c]+wheelRadius[c]);
+
+m_vehicle[c].addWheel(connectionPointCS0,wheelDirectionCS0,wheelAxleCS,suspensionRestLength[c],wheelRadius[c],m_tuning,isFrontWheel);
+
+
+connectionPointCS0.setValue(CUBE_HALF_EXTENTS[c]-(0.3*wheelWidth[c]),connectionHeight[c],-2*CUBE_HALF_EXTENTS[c]+wheelRadius[c]);
+
+m_vehicle[c].addWheel(connectionPointCS0,wheelDirectionCS0,wheelAxleCS,suspensionRestLength[c],wheelRadius[c],m_tuning,isFrontWheel);
+// these last two of the six total wheels are for rendering
+
+m_tuning.set_m_frictionSlip( rearWheelFriction[c] );
+isFrontWheel=true;
+connectionPointCS0.setValue(-CUBE_HALF_EXTENTS[c]+(0.3*wheelWidth[c]),connectionHeight[c],-2*CUBE_HALF_EXTENTS[c]+wheelRadius[c]);
+
+
+m_vehicle[c].addWheel(connectionPointCS0,wheelDirectionCS0,wheelAxleCS,suspensionRestLength[c],wheelRadius[c],m_tuning,isFrontWheel);
+
+connectionPointCS0.setValue(CUBE_HALF_EXTENTS[c]-(0.3*wheelWidth[c]),connectionHeight[c],-2*CUBE_HALF_EXTENTS[c]+wheelRadius[c]);
+
+m_vehicle[c].addWheel(connectionPointCS0,wheelDirectionCS0,wheelAxleCS,suspensionRestLength[c],wheelRadius[c],m_tuning,isFrontWheel);
+
+resetVehicle(c);
+tuneVehicle(c);
+Ammo.destroy(connectionPointCS0); connectionPointCS0=null;
+Ammo.destroy(m_tuning); m_tuning=null;
+}//end make vehicle
+
+
+function resetVehicle(c){
+tv.setValue(0,0,0);
+if(!tuneup[c]){//initially reposition
+gVehicleSteering[c]=0.0;
+var carTrans=new Ammo.btTransform();
+m_carChassis[c].setCenterOfMassTransform(carTrans.getIdentity());
+m_carChassis[c].setLinearVelocity(tv);
+m_carChassis[c].setAngularVelocity(tv);
+m_carChassis[c].getMotionState().getWorldTransform(carTrans);
+tv.setValue(0,0,(c*10));
+carTrans.setOrigin(tv);
+var quat=new Ammo.btQuaternion();
+quat.setEuler(-Math.PI/2,0, 0);
+carTrans.setRotation(quat);
+
+m_carChassis[c].setWorldTransform(carTrans);
+
+Ammo.destroy(carTrans); carTrans=null;
+Ammo.destroy(quat); quat=null;
+}//end if ! tune up
+dynamicsWorld.getBroadphase().getOverlappingPairCache().cleanProxyFromPairs(m_carChassis[c].getBroadphaseHandle(), dynamicsWorld.getDispatcher());
+if(m_vehicle[c]){
+m_vehicle[c].resetSuspension();
+for(i=0;i<m_vehicle[c].getNumWheels();i++){
+//synchronize the wheels with the (interpolated) chassis worldtransform
+m_vehicle[c].updateWheelTransform(i,true);
+}
+}
+tuneup[c]=false;
+
+}//end reset vehicle
+
+
+function tuneVehicle(c){
+for (i=0;i< m_vehicle[c].getNumWheels();i++){
+var wheel=m_vehicle[c].getWheelInfo( i );
+wheel.set_m_suspensionStiffness=suspensionStiffness[c];
+wheel.set_m_wheelsDampingRelaxation=suspensionDamping[c];
+wheel.set_m_wheelsDampingCompression=suspensionCompression[c];
+if(i>1){wheel.m_frictionSlip=rearWheelFriction[c];}else{
+wheel.set_m_frictionSlip=frictionSlip[c];}
+wheel.set_m_rollInfluence(rollInfluence[c]);
+//synchronize the wheels with the (interpolated) chassis worldtransform
+m_vehicle[c].updateWheelTransform(i,true);
+}
+m_vehicle[c].updateSuspension();
+}//end tuneVehicle
+
+
+
+function bulletDestroy(){
+  // Delete objects we created through |new|. We just do a few of them here, but you should do them all if you are not shutting down ammo.js
+  // we'll free the objects in reversed order as they were created via 'new' to avoid the 'dead' object links
+Ammo.destroy(dynamicsWorld);
+Ammo.destroy(solver);
+Ammo.destroy(overlappingPairCache);
+Ammo.destroy(dispatcher);
+Ammo.destroy(collisionConfiguration);
+Ammo.destroy(tv);
+}//end bullDestroy
+
+tv.setValue(0, -40, 0);
+dynamicsWorld.setGravity(tv);
+
+var triMeshBody=[];
+var tbody;
+
+var worldFiles=['courser2a','courser3a','courser14a','courser5a','courser6a','courser7a','courser8a','courser9a','courser10a','courser11a','courser12a','courser13a'];
+var worldID=2;
+//var worldID=worldFiles.length-1;
+var bodies=[];
+
+var threeObject=[]; //index 0 is for the ground, 1 for the camera
+
+cubeUrls=[ 
+'px.jpg', 'nx.jpg', 
+'py.jpg', 'ny.jpg', 
+'pz.jpg', 'nz.jpg' ];
+cubeReflect=new THREE.CubeTextureLoader().load(cubeUrls);
+cubeReflect.format=THREE.RGBFormat;
+
+/*
+texture=THREE.ImageUtils.loadTexture('lament2.jpg');
+texture.repeat.set( 1.0, 1.0 );
+texture.wrapS= texture.wrapT=THREE.RepeatWrapping;
+
+mat2= new THREE.MeshPhongMaterial({
+color: 0xaaaaaa,
+shininess: 200, 
+specular: 0x171717,
+map : texture,
+bumpMap: texture,
+bumpScale: 0.05
+});
+
+
+texture=THREE.ImageUtils.loadTexture('lament3.jpg');
+texture.repeat.set( 1.0, 1.0 );
+texture.wrapS= texture.wrapT=THREE.RepeatWrapping;
+mat4= new THREE.MeshPhongMaterial({
+color: 0xaaaaaa,
+shininess: 200, 
+visible:false, //not visible
+specular: 0x171717,
+map : texture,
+bumpMap: texture,
+bumpScale: 0.05
+});
+
+texture=THREE.ImageUtils.loadTexture('lament1.jpg');
+texture.repeat.set( 1.0, 1.0 );
+texture.wrapS= texture.wrapT=THREE.RepeatWrapping;
+mat3= new THREE.MeshPhongMaterial({
+color: 0xaaaaaa,
+shininess: 200, 
+specular: 0x171717,
+map : texture,
+bumpMap: texture,
+bumpScale: 0.05
+});
+*/
+var matBlank=new THREE.MeshBasicMaterial();
+matBlank.visible=false;
+matBlank.side=THREE.FrontSide;
+
+function initObjects(numObjects){
+for(i=1;i<numObjects;i++){//0 is ground, 1 is camera
+
+var colShape;
+var mass;
+if(i==1){//camera object with index 1 gets built here
+threeObject[i]=new THREE.Mesh( new THREE.SphereGeometry( .1, 20, 20 ), matBlank );
+colShape= new Ammo.btSphereShape(1);
+mass=1;
+/*
+}else if(i<numObjects*.33){
+threeObject[i]=new THREE.Mesh( new THREE.BoxGeometry( 6, 6, 6 ), mat3 );
+colShape= new Ammo.btBoxShape(new Ammo.btVector3(3,3,3));
+mass=10;
+
+}else if(i<numObjects*.66){
+*/
+}else{
+//threeObject[i]=new THREE.Mesh( new THREE.SphereGeometry( 2, 20, 20 ), mat4 );
+//colShape= new Ammo.btSphereShape(2);
+//threeObject[i]=new THREE.Mesh( new THREE.CylinderGeometry( 3, 3, 6, 20 ),mat4);
+//tv.setValue(3,3,3);
+//colShape= new Ammo.btCylinderShape(tv);
+//mass=320;
+}
+
+/*
+}else{
+threeObject[i]=new THREE.Mesh( new THREE.SphereGeometry( 2, 20, 20 ), mat2 );
+colShape= new Ammo.btSphereShape(2);
+mass=50;
+}
+*/
+
+var startTransform =new Ammo.btTransform(); 
+startTransform.setIdentity();
+
+var isDynamic=(mass!==0);
+var localInertia= new Ammo.btVector3(0, 0, 0);
+if(isDynamic){colShape.calculateLocalInertia(mass,localInertia);}
+tv.setValue(0, 0, 0);
+startTransform.setOrigin(tv);
+var myMotionState=new Ammo.btDefaultMotionState(startTransform);
+var rbInfo= new Ammo.btRigidBodyConstructionInfo(mass, myMotionState, colShape, localInertia);
+var body= new Ammo.btRigidBody(rbInfo);
+threeObject[i].userData.physicsBody=body;
+threeObject[i].receiveShadow=true;
+threeObject[i].castShadow=true;
+body.setFriction(3.0);
+if(i==1){//no contact response for camera
+body.setCollisionFlags(body.getCollisionFlags()|4);
+body.setActivationState(DISABLE_DEACTIVATION);
+}
+dynamicsWorld.addRigidBody(body);
+bodies.push(body);
+Ammo.destroy(localInertia); localInertia=null;
+}}//end init objects
+
+
+var obTrans=new Ammo.btTransform();
+var triMeshBodyTrans=new Ammo.btTransform();
+var stringer='';
+
+function randRange(min, max){
+return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function worldMoveOpacity(i){
+for(i=0;i<worldMat.length;i++){
+if(typeof worldMat[i]!=="undefined"){
+var m=worldMat[i].materials;
+for(n in m){
+m[n].opacity+=.001;
+if(m[n].opacity>1){worldHidden[i]=false;m[n].opacity=1;}
+m[n].needsUpdate=true;
+}}}}//end world move opacity
+
+function resetBulletObjects(){
+//dynamicsWorld.clearForces();
+var clearTrans=new Ammo.btTransform();
+var rx=0, ry=0, rz=0;
+for(i=2;i<bodies.length;i++){
+clearTrans.setIdentity();
+rx=randRange(-5,5)*i;
+//ry=randRange(0,2)*i;
+rz=randRange(-5,5)*i;
+//rx+=6; rz+=6;
+ry=-35;
+tv.setValue(rx,ry,rz);
+clearTrans.setOrigin(tv);
+bodies[i].setWorldTransform(clearTrans);
+bodies[i].clearForces();
+bodies[i].activate();
+//bodies[i].setLinearVelocity(new Ammo.btVector3(-rx,-ry,-rz));
+}
+Ammo.destroy(clearTrans); clearTrans=null;
+}//end reset bullet objects
+
+
+function decalMaintenance(){
+decalCounter+=2;
+if(decalCounter>120){decalCounter=0;}
+
+if(decals.length>1000){
+for(var i=0;i<decals.length;i++){scene.remove(decals[i]);}
+decals=[];
+decalCounter=0;
+}
+}//end decalMaintenance
+
+
+function tireSmoker(i,smokerModel, xval){
+if(typeof carModel[cci][0]!=="undefined"){
+smokerModel.quaternion.set( 
+camera.quaternion.x, 
+camera.quaternion.y, 
+camera.quaternion.z, 
+camera.quaternion.w 
+);
+
+
+if((moveCarForward[cci]||moveCarBackward[cci])&&Math.abs(kmh[cci])<maxSpeed[cci]/4){
+var s_caro=m_carChassis[cci].getWorldTransform().getBasis();
+smo.setValue(xval,.1,-1.8);
+smo2.setValue(
+s_caro.getRow(0).x()*smo.x()+s_caro.getRow(0).y()*smo.y()+s_caro.getRow(0).z()*smo.z(),
+s_caro.getRow(1).x()*smo.x()+s_caro.getRow(1).y()*smo.y()+s_caro.getRow(1).z()*smo.z(),
+s_caro.getRow(2).x()*smo.x()+s_caro.getRow(2).y()*smo.y()+s_caro.getRow(2).z()*smo.z()
+);
+smo3.setValue(
+smo2.x()+carModel[cci][0].position.x,
+smo2.y()+carModel[cci][0].position.y,
+smo2.z()+carModel[cci][0].position.z
+);
+smo4.set(smo3.x(),smo3.y(),smo3.z());
+smokerModel.position.set( smo4.x,smo4.y,smo4.z);
+
+smokerModel.material.map=frame[smokerCount3[i]];
+smokerModel.material.visible=true;
+smokerModel.material.opacity=1;
+smokerModel.scale.set(.9,.9,.9);
+smoUp[i]=!smoUp[i];
+if(smoUp[i]){smokerCount3[i]++};
+if(smokerCount3[i]>=frame.length){smokerCount3[i]=0;}
+}
+}}//end tire smoker
+
+
+function findGround(c){
+if(typeof worldModel[0]!=="undefined"&&typeof carModel[c]!=="undefined"){ 
+m_carChassis[c].getMotionState().getWorldTransform(chassisWorldTrans[c]);
+carPos[c]=chassisWorldTrans[c].getOrigin();
+downRayDir.setX(carPos[c].x());
+downRayDir.setY(carPos[c].y()-2000);
+downRayDir.setZ(carPos[c].z());
+var downRay=new Ammo.ClosestRayResultCallback(carPos[c],downRayDir);
+dynamicsWorld.rayTest(carPos[c], downRayDir, downRay);
+
+
+if(downRay.hasHit()){  
+carHeightAboveGround[c]=carPos[c].distance(downRay.get_m_hitPointWorld());
+
+m_carChassis[c].setDamping(0,0);
+
+if(worldSwitching[c]){
+var pointBelow=downRay.get_m_hitPointWorld();
+m_carChassis[c].getMotionState().getWorldTransform(chassisWorldTrans[c]);
+pointBelow.setY(pointBelow.y()+1);
+chassisWorldTrans[c].setOrigin(pointBelow);
+m_carChassis[c].setWorldTransform(chassisWorldTrans[c]);
+Ammo.destroy(pointBelow);pointBelow=null;
+}
+worldSwitching[c]=false;
+
+
+if(c==cci){
+decalWorldID=downRay.get_m_collisionObject().getUserPointer();
+}
+
+}else{
+
+var cp=new Ammo.btVector3(carPos[c].x(),carPos[c].y()+1,carPos[c].z());
+downRayDir.setY(carPos[c].y()+400);
+downRay=new Ammo.ClosestRayResultCallback(cp,downRayDir);
+dynamicsWorld.rayTest(cp, downRayDir, downRay);
+Ammo.destroy(cp);cp=null;
+
+if(downRay.hasHit()){ 
+
+//do not want ray from car a hitting car b above it, and getting moved above b, so set boolean for car to car hits when raycasting upward
+
+dp=dynamicsWorld.getDispatcher();
+numMan=dp.getNumManifolds(); 
+carHit=false;
+    
+for(var i=0;i<numMan;i++){
+manifold=dp.getManifoldByIndexInternal(i);
+        
+num_contacts=manifold.getNumContacts();
+if(!(num_contacts===0)){
+        
+bodyA=carObjects[c][ manifold.getBody0() ];
+bodyB=carObjects[c][ manifold.getBody1() ];
+        
+if(bodyA!=bodies[1]&&bodyB!=bodies[1]){
+carHit=true;//so do not move car a above car b when b is above a 
+}
+}
+}//end num man loop
+
+
+if(!carHit){
+worldSwitching[c]=false;
+var pointAbove=downRay.get_m_hitPointWorld();
+m_carChassis[c].setDamping(.99,.99);
+m_carChassis[c].getMotionState().getWorldTransform(chassisWorldTrans[c]);
+pointAbove.setY(pointAbove.y()+1.5);
+chassisWorldTrans[c].setOrigin(pointAbove);
+m_carChassis[c].setWorldTransform(chassisWorldTrans[c]);
+
+Ammo.destroy(pointAbove);pointAbove=null;
+}//end if !carHit
+
+}//end hit above
+}//end no hit below
+
+
+Ammo.destroy(downRay);downRay=null;
+}//if !== undefined
+}//end find ground
+
+
+function bulletStep(){
+if(!bullStop){dynamicsWorld.stepSimulation(1/60);}
+
+//da('tester', Math.abs(kmh[cci]).toFixed(0));
+//da('tester', carHeightAboveGround[cci].toFixed(0));
+//da('tester', camPresets+':<BR>'+camDist.toFixed(2)+' -- '+camHeight.toFixed(2)+' --- '+camTilt.toFixed(2)+' --- '+camRotateCar.toFixed(4));
+//da('tester', camZoomer);
+
+for(var c=0;c<numCars;c++){
+findGround(c);
+}//end num cars loop
+
+
+var cardir=-fixAngleRad(Math.atan2(m_carChassis[cci].getLinearVelocity().getZ(), m_carChassis[cci].getLinearVelocity().getX())+Math.PI/2);
+
+//var posser=cardir.toFixed(2)+'<BR>';
+
+for(var i=0;i<numWorldModels;i++){
+if(!resettingCars){
+
+var nx=1, nz=1, distX=0, distZ=0;
+if(cardir>0){nx=-1;}
+if(cardir<Math.PI/2&&cardir>-Math.PI/2){nz=-1;}
+
+if(typeof worldModel[i]!=="undefined"){
+
+distX=carPos[cci].x()-worldModel[i].position.x;
+distZ=carPos[cci].z()-worldModel[i].position.z;
+
+//posser+=i+') '+positioner[i].x()+' ---- '+positioner[i].z()+'<BR>';
+
+
+if(worldHidden[i]){worldMoveOpacity(i);}
+
+
+if(Math.abs(distX)>1500){
+positioner[i].setX(positioner[i].x()+2640*nx);//880*3
+worldHidden[i]=true;
+worldMat[i].materials.w3.transparent=true;
+worldMat[i].materials.w3.opacity=0;
+worldMat[i].materials.w3.needsUpdate=true;
+}
+
+if(Math.abs(distZ)>1500){
+positioner[i].setZ(positioner[i].z()+2640*nz);
+worldHidden[i]=true;
+worldMat[i].materials.w3.transparent=true;
+worldMat[i].materials.w3.opacity=0;
+worldMat[i].materials.w3.needsUpdate=true;
+}
+
+
+worldModel[i].position.set( positioner[i].x(), -38, positioner[i].z() );
+
+}//world model ! undefined
+
+
+if(typeof triMeshBody[i]!=="undefined"){
+triMeshBody[i].setUserPointer(i);
+triMeshBodyTrans.setIdentity();
+triMeshBodyTrans.setOrigin(positioner[i]);
+triMeshBody[i].setWorldTransform(triMeshBodyTrans);
+}
+
+}//end ! resetting cars
+}//end num world models
+
+
+
+if(lifter){
+tv.setValue(-5,0,0);
+m_carChassis[cci].setAngularVelocity(tv);
+}
+
+carHitForce=[];
+manifolder=[];
+highestHitForce=0;
+carHit=false;
+dp=dynamicsWorld.getDispatcher();
+numMan=dp.getNumManifolds(); 
+    
+for(var i=0;i<numMan;i++){
+manifold=dp.getManifoldByIndexInternal(i);
+        
+num_contacts=manifold.getNumContacts();
+if(!(num_contacts===0)){
+        
+bodyA=carObjects[cci][ manifold.getBody0() ];
+bodyB=carObjects[cci][ manifold.getBody1() ];
+        
+if((bodyA== m_carChassis[cci] || bodyB== m_carChassis[cci])&&!(bodyA==bodies[1]||bodyB==bodies[1])){
+carHit=true;
+carHitForce.push(manifold.getContactPoint().get_m_appliedImpulse());
+manifolder.push(manifold);
+}
+}
+}//end num man loop
+
+if(carHitForce.length>0){
+highestHitForce=Math.max(...carHitForce);
+for(var i=0;i<carHitForce.length;i++){
+if(highestHitForce==carHitForce[i]){
+manifolder[i].getContactPoint().set_m_appliedImpulse(0);
+hitPoint.setX(manifolder[i].getContactPoint().getPositionWorldOnA().x());
+hitPoint.setY(manifolder[i].getContactPoint().getPositionWorldOnA().y());
+hitPoint.setZ(manifolder[i].getContactPoint().getPositionWorldOnA().z());
+}
+}//end car hit force loop
+
+
+
+if(highestHitForce>16000){ 
+if(typeof hitSound!=="undefined"&&!hitSound.isPlaying){
+hitVol=highestHitForce*.0001;
+if(hitVol>1){hitVol=1;}
+if(hitVol<.05){hitVol=.05;}
+hitSound.setVolume(hitVol*1);
+hitSound.play(); //alternator
+}
+
+if(typeof hitSound3!=="undefined"&&!hitSound3.isPlaying){
+hitSound3.setVolume(hitVol*3);
+hitSound3.play(); //glass
+sparkler=true;
+}
+
+
+if(typeof hitSound4!=="undefined"&&!hitSound4.isPlaying){
+hitSound4.setVolume(hitVol*.2);
+hitSound4.play(); //metal
+}
+
+
+}else if(highestHitForce>6000){ 
+if(typeof hitSound!=="undefined"&&!hitSound.isPlaying){
+hitVol=highestHitForce*.0001;
+if(hitVol>1){hitVol=1;}
+if(hitVol<.05){hitVol=.05;}
+hitSound.setVolume(hitVol*1);
+hitSound.play(); //alternator
+}
+
+
+
+}else if(highestHitForce>2){ 
+if(typeof hitSound2!=="undefined"&&!hitSound2.isPlaying&&typeof hitSound5!=="undefined"&&!hitSound5.isPlaying){
+//&&typeof hitSound5!=="undefined"&&!hitSound5.isPlaying
+hitVol=highestHitForce*.005;
+if(hitVol>.6){hitVol=.6;}
+if(hitVol<.05){hitVol=.05;}
+hitSwitch=!hitSwitch;
+if(hitSwitch){
+hitSound2.setVolume(hitVol*2);
+hitSound2.play(); //boing
+}else{
+hitSound5.setVolume(hitVol*1);
+hitSound5.play(); //carHit
+}
+}//end ! undefined and ! playing
+
+}//end highest hit force > 5
+
+
+}//end car hit force length>0
+
+if(sparkler){
+sparksMesh.quaternion.set( 
+camera.quaternion.x, 
+camera.quaternion.y, 
+camera.quaternion.z, 
+camera.quaternion.w 
+);
+
+sparksMesh.position.set(hitPoint.x(),hitPoint.y(),hitPoint.z());
+
+sparksMesh.material.map=sparks[sparksCount];
+sparksMesh.material.visible=true;
+sparksMesh.material.opacity=1;
+sparksMesh.scale.set(5,5,5);
+sparksCount++;
+if(sparksCount>=sparks.length){
+sparksCount=0;
+sparkler=false;
+sparksMesh.material.visible=false;
+}
+
+}//end if sparkler
+
+
+
+
+if(resetBulletObjectsBool){
+resetBulletObjectsBool=false;
+resetBulletObjects();
+}
+
+for(var c=0;c<numCars;c++){
+
+if(c==cci){
+
+if(m_vehicle[c].getWheelInfo( 2 ).get_m_skidInfo()<.8 || ((moveCarForward[c]||moveCarBackward[c])&&Math.abs(kmh[c])<maxSpeed[c]/4)){
+
+shoot(c);decalMaintenance(); 
+tireSmoker(0,smoker3,.9);
+tireSmoker(1,smoker4,-1.1);
+
+if(typeof skidSound!=="undefined"&&engineSoundAdded){
+if(skidVol<Math.abs(kmh[c]+.0001)/(maxSpeed[c])){
+skidVol+=.01;
+}
+if(firstSkid){skidVol=0;firstSkid=false;}
+skidSound.setVolume(skidVol);
+if(!skidSound.isPlaying){skidSound.play();}
+}
+
+}else{
+smoker3.material.visible=false;
+smoker4.material.visible=false;
+if(skidSound.isPlaying){skidSound.stop();skidVol=0;}
+}
+
+}//end if c==cci
+
+
+
+
+lastKmh[c]=kmh[c];
+kmh[c]=m_vehicle[c].getCurrentSpeedKmHour();
+
+
+/*
+//too reduce occurrences of cars going through the ground
+if(Math.abs(kmh[c])>maxSpeed[c]*1.7){
+goingTooFast[c]=true;
+m_carChassis[c].setFriction(5);
+m_carChassis[c].setDamping(.95,0);
+}
+
+if(goingTooFast[c]&&Math.abs(kmh[c])<=maxSpeed[c]*1.7){
+m_carChassis[c].setFriction(1);
+m_carChassis[c].setDamping(0,0);
+goingTooFast[c]=false;
+}
+
+//to prevent cars from spinning like tops
+if(m_carChassis[c].getAngularVelocity().length()>15){
+spinningTooFast[c]=true;
+m_carChassis[c].setDamping(.95,.95);
+m_carChassis[c].setFriction(5);
+}
+
+if(m_carChassis[c].getAngularVelocity().length()<=15&&spinningTooFast[c]){
+m_carChassis[c].setFriction(1);
+m_carChassis[c].setDamping(0,0);
+spinningTooFast[c]=false;
+}
+*/
+
+
+steering[c]=(steerCarLeft[c]||steerCarRight[c]);
+
+if(!steering[c]){gVehicleSteering[c]*=steeringReturnRate[c];
+}else if(steering[c]){
+
+if(steerCarLeft[c]){
+if(gVehicleSteering[c]<.05){gVehicleSteering[c]+=.01;}else{
+gVehicleSteering[c]*= 1+steeringIncrement[c];}
+if(gVehicleSteering[c] > steeringClamp[c]){gVehicleSteering[c]=steeringClamp[c];}
+}else 
+if(steerCarRight[c]){
+if(gVehicleSteering[c]>-.05){gVehicleSteering[c]-=.01;}else{
+gVehicleSteering[c] *= 1+steeringIncrement[c];}
+if(gVehicleSteering[c] < -steeringClamp[c]){gVehicleSteering[c]=-steeringClamp[c];}
+}
+}//end if steering
+
+
+//if cars go upside down, flip them
+if(carHeightAboveGround[c]<3){
+tv.setValue(0.0,-1.0,0.0);
+bodRot=m_carChassis[c].getWorldTransform().getBasis().getColumn(1).dot(tv); 
+if(bodRot>.8){
+bodRotTick[c]++;if(bodRotTick[c]>60){
+var bodyRot2=m_carChassis[c].getWorldTransform().getBasis();
+var tempVec2=new Ammo.btVector3(m_carChassis[c].getLinearVelocity().x(),10,m_carChassis[c].getLinearVelocity().z());
+m_carChassis[c].setLinearVelocity(tempVec2);
+var tempVec=new Ammo.btVector3(0,0,-5);
+tempVec2.setValue(
+bodyRot2.getRow(0).x()*tempVec.x()+bodyRot2.getRow(0).y()*tempVec.y()+bodyRot2.getRow(0).z()*tempVec.z(),
+bodyRot2.getRow(1).x()*tempVec.x()+bodyRot2.getRow(1).y()*tempVec.y()+bodyRot2.getRow(1).z()*tempVec.z(),
+bodyRot2.getRow(2).x()*tempVec.x()+bodyRot2.getRow(2).y()*tempVec.y()+bodyRot2.getRow(2).z()*tempVec.z()
+);
+m_carChassis[c].setAngularVelocity(tempVec2);
+Ammo.destroy(tempVec2);tempVec2=null;
+Ammo.destroy(tempVec);tempVec=null;
+Ammo.destroy(bodyRot2);bodyRot2=null;
+bodRotTick[c]=0;}
+
+}else{bodRotTick[c]=0;}
+}//end car height above ground < 3
+
+
+if(typeof carModel[c][0]!=="undefined"){
+
+var qc=new THREE.Quaternion(0,0,0,1);
+qc=carModel[c][0].quaternion;
+
+//radians
+carHeading2=fixAngleRad((Math.PI+(Math.atan2(2*qc.y*qc.w-2*qc.x*qc.z , 1 - 2*(qc.y*qc.y) - 2*(qc.z*qc.z)))));
+
+var curx=parseFloat(coordx[c][coordi[c]]-carPos[c].x());
+var curz=parseFloat(coordz[c][coordi[c]]-carPos[c].z());
+tv3.set(coordx[c][coordi[c]], carModel[c][0].position.y, coordz[c][coordi[c]]);
+var dister=carModel[c][0].position.distanceTo( tv3 );
+
+
+if(typeof markerSphere!=="undefined"&&typeof decalsMandala[0]!=="undefined"){
+markerSphere.rotateY(.005);
+}
+
+if(c==cci&&!mandalaSet){decalRayCast();}
+
+if(dister<10){
+coordi[c]++;
+if(c==cci){mandalaSet=false;decalRayCast();if(!popSound.isPlaying){popSound.play();}}
+var ai=carPlaces.map(function(e){return e.name;}).indexOf(carNames[c]);
+carPlaces[ai].place++;
+
+if(coordi[c]>=coordx[c].length){
+
+for(var i=0;i<numCoords;i++){
+if(i>0&&allCoordSame){
+coordx[c][i]=coordx[0][i];
+coordz[c][i]=coordz[0][i];
+}else{
+coordx[c][i]=randRange(-coordRange,coordRange);
+coordz[c][i]=randRange(-coordRange,coordRange);
+}
+}
+coordi[c]=0;
+carPlaces[c].place=0;
+}
+
+score(c);
+}else{
+scoreUpdated[c]=false;
+}
+
+}//end !undefined
+
+//robo cars
+if(roboCars&&(c!=cci||iamaRobot)&&typeof carModel[c][0]!=="undefined"){
+
+
+if(kmh[c]<maxSpeed[c]){moveCarForward[c]=true;}else{moveCarForward[c]=false;}
+
+var bearing=Math.atan2(curz,curx);
+
+var bearDif=fixAngleRad((-Math.PI/2-bearing)-carHeading2);
+if(Math.abs(bearDif)>.035){ 
+gVehicleSteering[c]+=bearDif/10;
+}
+
+}//end if robo cars && c != cci
+else if(!roboCars&&c!=cci){moveCarForward[c]=false;}
+
+
+accelerating[c]=(moveCarForward[c]||moveCarBackward[c]);
+
+if(!accelerating[c]){gEngineForce[c]=0; 
+if(Math.abs(kmh[c])>20){gBreakingForce[c]+=5;}
+
+if(c==cci){
+engPitch=Math.abs(kmh[c])/(maxSpeed[c]*.5);
+if(engPitch<minPitch){engPitch=minPitch;}
+engineSound.setPlaybackRate(engPitch);
+engineSound.setVolume(engPitch);
+}
+
+}else if(accelerating[c]){
+
+if(c==cci){
+
+
+engPitch=Math.abs(kmh[c])/(maxSpeed[c]*.5);
+if(engPitch<minPitch){engPitch=minPitch;}
+engineSound.setPlaybackRate(engPitch);
+engineSound.setVolume(engPitch);
+}//end if c==cci
+
+if(moveCarForward[c]&&kmh[c]<maxSpeed[c]){
+if(kmh[c]<maxSpeed[c]/5){  gEngineForce[c]=maxEngineForce[c]*turboForce;}else{ gEngineForce[c]=maxEngineForce[c];}
+gBreakingForce[c]=0.0;
+}else if(moveCarForward[c]&&kmh[c]>=maxSpeed[c]){
+gEngineForce[c]=0.0;
+gBreakingForce[c]=0.0;
+
+}else if(moveCarBackward[c]&&kmh[c]>-maxSpeed[c]){
+gEngineForce[c]=-maxEngineForce[c];
+gBreakingForce[c]=0.0;
+}else if(moveCarBackward[c]&&kmh[c]<=maxSpeed[c]){
+gEngineForce[c]=0.0;
+gBreakingForce[c]=0.0;
+}
+
+}//end if accelerating
+
+
+
+
+
+//0,1 front; 2,3 back
+m_vehicle[c].applyEngineForce(gEngineForce[c],0);
+m_vehicle[c].setBrake(gBreakingForce[c],0);
+m_vehicle[c].setSteeringValue(gVehicleSteering[c],0);
+m_vehicle[c].setSteeringValue(-gVehicleSteering[c]*1.2,4);//for drifting, 5th wheel (rear)
+
+m_vehicle[c].applyEngineForce(gEngineForce[c],4);
+//m_vehicle[c].setBrake(gBreakingForce[c],4);
+
+m_vehicle[c].applyEngineForce(gEngineForce[c],1);
+m_vehicle[c].setBrake(gBreakingForce[c],1);
+m_vehicle[c].setSteeringValue(gVehicleSteering[c],1);
+m_vehicle[c].setSteeringValue(-gVehicleSteering[c]*1.2,5); //for drifting, 6th wheel (rear)
+
+m_vehicle[c].applyEngineForce(gEngineForce[c],5);
+//m_vehicle[c].setBrake(gBreakingForce[c],5);
+
+
+
+//chassis
+m_carChassis[c].getMotionState().getWorldTransform(chassisWorldTrans[c]);
+carPos[c]=chassisWorldTrans[c].getOrigin();
+
+for(i=0;i<numCarModels;i++){
+if(typeof carModel[c][i]!=="undefined"){
+
+if(c==cci&&i==0&&!engineSoundAdded){
+carModel[cci][0].children[i].add(engineSound);
+carModel[cci][0].children[i].add(skidSound);
+carModel[cci][0].children[i].add(hitSound);
+carModel[cci][0].children[i].add(hitSound2);
+carModel[cci][0].children[i].add(hitSound3);
+carModel[cci][0].children[i].add(hitSound4);
+carModel[cci][0].children[i].add(hitSound5);
+carModel[cci][0].children[i].add(popSound);
+engineSoundAdded=true;
+}
+
+if(!engineSound.isPlaying&&typeof engineSound!=="undefined"){engineSound.play();}
+
+carModel[c][i].position.set( carPos[c].x(), carPos[c].y(), carPos[c].z() );
+carModel[c][i].quaternion.set( 
+chassisWorldTrans[c].getRotation().x(), 
+chassisWorldTrans[c].getRotation().y(), 
+chassisWorldTrans[c].getRotation().z(), 
+chassisWorldTrans[c].getRotation().w() 
+);
+
+if(c==cci&&i==0){
+if(camFollowCar||chaseCammer){
+dirLight.position.set(carPos[c].x(), carPos[c].y()+250, carPos[c].z());
+}else{
+dirLight.position.set(
+camera.position.x, 
+camera.position.y+250, 
+camera.position.z
+);
+}
+
+
+smoker.quaternion.set( 
+camera.quaternion.x, 
+camera.quaternion.y, 
+camera.quaternion.z, 
+camera.quaternion.w 
+);
+
+smoker2.quaternion.set( 
+camera.quaternion.x, 
+camera.quaternion.y, 
+camera.quaternion.z, 
+camera.quaternion.w 
+);
+
+var s_caro=m_carChassis[c].getWorldTransform().getBasis();
+
+//first smoker
+smo.setValue(-.5,.3,-2.7);
+smo2.setValue(
+s_caro.getRow(0).x()*smo.x()+s_caro.getRow(0).y()*smo.y()+s_caro.getRow(0).z()*smo.z(),
+s_caro.getRow(1).x()*smo.x()+s_caro.getRow(1).y()*smo.y()+s_caro.getRow(1).z()*smo.z(),
+s_caro.getRow(2).x()*smo.x()+s_caro.getRow(2).y()*smo.y()+s_caro.getRow(2).z()*smo.z()
+);
+smo3.setValue(
+smo2.x()+carModel[c][0].position.x,
+smo2.y()+carModel[c][0].position.y,
+smo2.z()+carModel[c][0].position.z
+);
+smo4.set(smo3.x(),smo3.y(),smo3.z());
+smoker.position.set( smo4.x,smo4.y,smo4.z);
+
+smoker.material.map=frame[smokerCount];
+if(opacDown){opac-=.02;}else{opac+=.02;}
+if(opac<.4){opacDown=false;}else if(opac>1.5){opacDown=true;}
+smoker.material.opacity=opac;
+smokerCount++;if(smokerCount>frame.length-1){smokerCount=0;}
+
+
+//second smoker
+smo.setValue(-.5,.3,-2.95);
+smo2.setValue(
+s_caro.getRow(0).x()*smo.x()+s_caro.getRow(0).y()*smo.y()+s_caro.getRow(0).z()*smo.z(),
+s_caro.getRow(1).x()*smo.x()+s_caro.getRow(1).y()*smo.y()+s_caro.getRow(1).z()*smo.z(),
+s_caro.getRow(2).x()*smo.x()+s_caro.getRow(2).y()*smo.y()+s_caro.getRow(2).z()*smo.z()
+);
+smo3.setValue(
+smo2.x()+carModel[c][0].position.x,
+smo2.y()+carModel[c][0].position.y,
+smo2.z()+carModel[c][0].position.z
+);
+smo4.set(smo3.x(),smo3.y(),smo3.z());
+smoker2.position.set( smo4.x,smo4.y,smo4.z);
+
+smoker2.material.map=frame[smokerCount2];
+smoker2.material.opacity=.5;
+smoker2Scale=.5;
+smoker2.scale.set(smoker2Scale,smoker2Scale,smoker2Scale);
+smokerCount2++;if(smokerCount2>frame.length-1){smokerCount2=0;}
+
+
+}//c==cci&&i==0
+
+}
+}//num car models
+
+//wheels, index 0 is the chassis shape
+for(i=0;i<4;i++){
+//synchronize the wheels with the (interpolated) chassis worldtransform
+m_vehicle[c].updateWheelTransform(i,true);
+wheelTrans=m_vehicle[c].getWheelInfo(i).get_m_worldTransform();
+var p=wheelTrans.getOrigin();
+var q=wheelTrans.getRotation();
+
+//clones of tire and hub
+if(i<3){
+
+if(typeof tireClones[c][i]!=="undefined"){
+tireClones[c][i].position.set( p.x(), p.y(), p.z() );
+tireClones[c][i].quaternion.set( q.x(), q.y(), q.z(), q.w() );
+if(i==0){tireClones[c][i].rotateY( - Math.PI  );}
+}
+
+if(typeof hubClones[c][i]!=="undefined"){
+hubClones[c][i].position.set( p.x(), p.y(), p.z() );
+hubClones[c][i].quaternion.set( q.x(), q.y(), q.z(), q.w() );
+if(i==0){hubClones[c][i].rotateY( - Math.PI  );}
+}
+
+}else if(i==3){
+
+//original copy of tire and hub for wheels
+if(typeof carModel[c][1]!=="undefined"){
+carModel[c][1].position.set( p.x(), p.y(), p.z() );
+carModel[c][1].quaternion.set( q.x(), q.y(), q.z(), q.w() );
+carModel[c][1].rotateY( - Math.PI  );
+}
+
+}
+}//end wheels
+
+
+}//end num cars
+
+
+//index 0 is ground, index 1 is camera
+for(i=2;i<bodies.length;i++){
+bodies[i].getMotionState().getWorldTransform(obTrans);
+var p=obTrans.getOrigin();
+var q=obTrans.getRotation();
+threeObject[i].position.set( p.x(), p.y(), p.z() );
+threeObject[i].quaternion.set( q.x(), q.y(), q.z(), q.w() );
+}
+
+resettingCars=false;
+}//end bulletStep
+
+
+init();
+animate();
+
+function skyInit(){
+if(showSky){
+scene.fog=new THREE.Fog( fogColor, 10000, 10000);
+scene.background=cubeReflect;
+}else if(!showSky){
+scene.background=fogColor;
+scene.fog=new THREE.Fog( fogColor, 0, fogFar );
+}
+}//end sky init
+
+function skySwitcher(){
+showSky=!showSky;
+if(showSky){ 
+scene.fog.near=10000;
+scene.fog.far=10000;
+scene.background=cubeReflect;
+}else if(!showSky){
+scene.fog.near=0;
+scene.fog.far=fogFar;
+scene.background=fogColor;
+}
+}//end sky switcher
+
+function statsSwitcher(){
+if(showFPS){
+stats.dom.style.visibility="visible";
+stats.dom.style.zIndex='10000000';
+}else{
+stats.dom.style.visibility="hidden";
+}
+}//end stats switcher
+
+
+function init(){
+
+container=document.createElement('div');
+container.style.height=window.innerHeight+'px';
+container.style.width=window.innerWidth+'px';
+document.body.appendChild(container);
+
+
+stats=new Stats();
+container.appendChild(stats.dom);
+statsSwitcher();
+
+camera=new THREE.PerspectiveCamera( 70, SCREEN_WIDTH / SCREEN_HEIGHT, .01, 9000 );
+camera.add(soundListener);
+scene=new THREE.Scene();
+
+
+
+var sphereTextureMandala=new THREE.TextureLoader().load('mandala.png' );
+var sphereMaterialMandala=new THREE.MeshPhongMaterial( {
+color: 0x666666,
+specular: 0x111111,
+envMap:cubeReflect,
+//emissive:0x0011ff,
+map:sphereTextureMandala,
+bumpMap:sphereTextureMandala,
+bumpScale:.1,
+//transparent:true,
+opacity:1,
+shininess: 900,
+//side:THREE.DoubleSide
+} );
+var sphering=new THREE.SphereBufferGeometry(10,32,32);
+markerSphere=new THREE.Mesh(sphering, sphereMaterialMandala);
+markerSphere.castShadow=true;
+//markerSphere.receiveShadow=false;
+scene.add(markerSphere);
+
+skyInit();
+
+
+bodies.push({});
+
+initObjects(numObjects);
+for(i=1;i<bodies.length;i++){
+scene.add( threeObject[i] );
+}
+
+for(var c=0;c<numCars;c++){
+initVehicle(c);
+}
+
+//skyColor,world, intensity
+hemiLight=new THREE.HemisphereLight(
+new THREE.Color(0xd7bb60), 
+new THREE.Color(0xf0d7bb),  
+1.0 );
+hemiLight.position.set( 0, 1, 0 );
+scene.add(hemiLight);
+
+//dirLight=new THREE.DirectionalLight( 0xD6D6D6, 1 ); 
+dirLight=new THREE.DirectionalLight( 0xffffff, 2.6 ); 
+dirLight.castShadow=true;
+dirLight.shadowCameraVisible=true;
+dirLight.shadow.mapSize.width=2500;
+dirLight.shadow.mapSize.height=2500;
+var d=120;
+dirLight.shadow.camera.left=-d;
+dirLight.shadow.camera.right=d;
+dirLight.shadow.camera.top=d;
+dirLight.shadow.camera.bottom=-d;
+dirLight.shadow.camera.far=400;
+dirLight.shadow.bias=0.0001;
+
+scene.add( dirLight );
+
+
+pointLight=new THREE.PointLight( 0x0011ff, 5, 200 );
+scene.add( pointLight );
+
+
+for(var i=0;i<numWorldModels;i++){
+objWorldModelLoader(i,worldFiles[worldID]+'.obj',worldFiles[worldID]+'.mtl',worldScale,true);
+}
+
+
+for(var c=0;c<numCars;c++){
+for(i=0;i<numCarModels;i++){
+objCarModelLoader(c,i,objFile[c][i],mtlFile[c][i],objScales[c][i]);
+}
+}//end num cars loop
+
+camAndKeys=new camAndKeyFunction();
+
+renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio( window.devicePixelRatio );
+renderer.setSize( SCREEN_WIDTH, SCREEN_HEIGHT);
+renderer.toneMapping=THREE.Uncharted2ToneMapping;
+renderer.toneMappingExposure=1.0;
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.renderReverseSided=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+container.appendChild(renderer.domElement);
+
+container.style.paddingLeft='30px';
+container.style.paddingTop='10px';
+renderer.setSize( SCREEN_WIDTH*.1, SCREEN_HEIGHT*.1);
+
+window.addEventListener( 'resize', onWindowResize, false );
+
+var s_geometry=new THREE.BufferGeometry();
+var numFrames=6;
+for(var si=0;si<numFrames;si++){
+sparks[si]=new THREE.TextureLoader().load( 'animations/sparks_'+si+'.gif' ); 
+}
+numFrames=14;
+for(var si=0;si<numFrames;si++){
+frame[si]=new THREE.TextureLoader().load( 'animations/dirty2_'+si+'.gif' ); 
+}
+s_geometry=new THREE.PlaneGeometry( 2, 2, 1, 1 );
+
+s_material=new THREE.MeshPhongMaterial( {
+map: frame[0],
+transparent: true,
+color: 0xffffff,
+shininess: 0, 
+depthTest: true,
+depthWrite: false,
+opacity:opac
+//side:THREE.DoubleSide
+} );
+
+s_material2=new THREE.MeshPhongMaterial( {
+map: frame[0],
+transparent: true,
+color: 0xffffff,
+shininess: 0, 
+depthTest: true,
+depthWrite: false,
+opacity:.3,
+side:THREE.DoubleSide
+} );
+
+s_material3=new THREE.MeshPhongMaterial( {
+map: frame[0],
+transparent: true,
+color: 0xffffff,
+shininess: 0, 
+depthTest: true,
+depthWrite: false,
+opacity:.3,
+side:THREE.DoubleSide
+} );
+
+s_material4=new THREE.MeshBasicMaterial( {
+map: sparks[0],
+transparent:true,
+visible:false,
+color: 0xffffff,
+opacity:.7,
+side:THREE.DoubleSide
+} );
+
+smoker=new THREE.Mesh( s_geometry, s_material );
+smoker.scale.set(.4,.4,.4);
+smoker2=new THREE.Mesh( s_geometry, s_material2 );
+smoker2.scale.set(.6,.6,.6);
+
+smoker3=new THREE.Mesh( s_geometry, s_material3 );
+smoker4=new THREE.Mesh( s_geometry, s_material3 );
+
+sparksMesh=new THREE.Mesh( s_geometry, s_material4 );
+sparksMesh.receiveShadow=false;
+
+scene.add( smoker );
+scene.add( smoker2 );
+scene.add( smoker3 );
+scene.add( smoker4 );
+scene.add( sparksMesh );
+
+
+}//end init
+
+
+function shoot(c){
+
+if(typeof carModel[c][0]!=="undefined" && typeof carModel[c][1]!=="undefined"&&typeof worldModel[decalWorldID].children[0]!=="undefined"){
+
+
+var wheelRot=m_carChassis[c].getWorldTransform().getBasis();
+dec.setValue(-.2,0,.2);
+dec2.setValue(
+wheelRot.getRow(0).x()*dec.x()+wheelRot.getRow(0).y()*dec.y()+wheelRot.getRow(0).z()*dec.z(),
+wheelRot.getRow(1).x()*dec.x()+wheelRot.getRow(1).y()*dec.y()+wheelRot.getRow(1).z()*dec.z(),
+wheelRot.getRow(2).x()*dec.x()+wheelRot.getRow(2).y()*dec.y()+wheelRot.getRow(2).z()*dec.z()
+);
+dec3.setValue(
+dec2.x()+carModel[c][1].position.x,
+dec2.y()+carModel[c][1].position.y,
+dec2.z()+carModel[c][1].position.z
+);
+
+p_d.set(dec3.x(),dec3.y(),dec3.z());
+
+
+carVel.x=p_d.x-oldCarPos.x;
+carVel.y=p_d.y-oldCarPos.y;
+carVel.z=p_d.z-oldCarPos.z;
+
+oldCarPos.x=p_d.x;
+oldCarPos.y=p_d.y;
+oldCarPos.z=p_d.z;
+//angle from velocity
+decRot=-fixAngleRad(Math.atan2(carVel.z, carVel.x)+Math.PI/2);
+
+r_d.set(0, decRot, 0);
+
+
+if(carVel.length()>2){
+carVel.x=0;carVel.y=0;carVel.z=0;
+}
+s_d.set(1,1,carVel.length());
+material_d=decalMaterial.clone();
+//THREE.DecalGeometry=function( mesh, position, rotation, dimensions){
+md=new THREE.Mesh( new THREE.DecalGeometry( worldModel[decalWorldID].children[0], p_d, r_d, s_d), material_d );
+decals[i]=md;
+scene.add( decals[i] );
+
+
+dec.setValue(.2,0,.2);
+dec2.setValue(
+wheelRot.getRow(0).x()*dec.x()+wheelRot.getRow(0).y()*dec.y()+wheelRot.getRow(0).z()*dec.z(),
+wheelRot.getRow(1).x()*dec.x()+wheelRot.getRow(1).y()*dec.y()+wheelRot.getRow(1).z()*dec.z(),
+wheelRot.getRow(2).x()*dec.x()+wheelRot.getRow(2).y()*dec.y()+wheelRot.getRow(2).z()*dec.z()
+);
+dec3.setValue(
+dec2.x()+tireClones[c][2].position.x,
+dec2.y()+tireClones[c][2].position.y,
+dec2.z()+tireClones[c][2].position.z
+);
+p_d.set(dec3.x(),dec3.y(),dec3.z());
+
+
+carVel.x=p_d.x-oldCarPos2.x;
+carVel.y=p_d.y-oldCarPos2.y;
+carVel.z=p_d.z-oldCarPos2.z;
+
+oldCarPos2.x=p_d.x;
+oldCarPos2.y=p_d.y;
+oldCarPos2.z=p_d.z;
+
+
+decRot=-fixAngleRad(Math.atan2(carVel.z, carVel.x)+Math.PI/2);
+r_d.set(0, decRot, 0);
+
+if(carVel.length()>2){
+carVel.x=0;carVel.y=0;carVel.z=0;
+}
+s_d.set(1,1,carVel.length());
+
+//THREE.DecalGeometry=function( mesh, position, rotation, dimensions, check ) {
+md=new THREE.Mesh( new THREE.DecalGeometry( worldModel[decalWorldID].children[0], p_d, r_d, s_d), material_d );
+decals[i+1]=md;
+scene.add( decals[i+1] );
+
+}}//end shoot 
+
+
+
+//obj model loader from OBJLoader.js and MTLLoader.js
+function objCarModelLoader(c,i,objFile,mtlFile,scale){
+var onProgress=function(xhr){
+
+if(xhr.lengthComputable){
+var percentComplete=xhr.loaded / xhr.total * 100;
+if(xhr.total-xhr.loaded<1){modifyCarMaterials(c);}
+
+//console.log( Math.round(percentComplete, 2) + '% downloaded' );
+}};
+
+var onError=function(xhr){};
+
+mtlLoader=new THREE.MTLLoader();
+mtlLoader.setPath('');
+
+//material load call
+mtlLoader.load(mtlFile, function(materials){
+
+carMat[c][i]=materials;
+
+materials.preload();
+objLoader=new THREE.OBJLoader();
+objLoader.setMaterials(materials);
+objLoader.setPath('');
+
+//object load call (inside the material onload function)
+objLoader.load(objFile, function(object){
+
+object.position.set( 0, 0, 0 );
+carModel[c][i]=object;
+carModel[c][i].scale.set(scale,scale,scale);
+
+carModel[c][i].traverse( 
+function(child){
+if(child instanceof THREE.Mesh){
+child.castShadow=true;
+child.receiveShadow=false;
+}});
+scene.add(carModel[c][i]);
+if(c==cci&&i==0){dirLight.target=carModel[cci][0];}
+
+//make three copies each of tire
+if(i==1){
+for(j=0;j<3;j++){
+tireClones[c][j]=carModel[c][i].clone();
+scene.add(tireClones[c][j]);
+}
+}
+
+},onProgress,onError); //end obj load call
+}); //end mtl load call
+
+}//end obj car model loader
+
+
+//world model loader
+function objWorldModelLoader(i,objFile,mtlFile,scale,isPhysical){
+
+var onProgress=function(xhr){
+if(xhr.lengthComputable){
+var percentComplete=xhr.loaded / xhr.total * 100;
+//console.log(xhr.loaded+' '+ Math.round(percentComplete, 2) + '% downloaded' );
+
+
+if(xhr.total-xhr.loaded<1){modifyWorldMaterials();}
+
+}};
+var onError=function(xhr){};
+
+mtlLoader=new THREE.MTLLoader();
+mtlLoader.setPath( '' );
+
+mtlLoader.load(mtlFile, function(materials){
+materials.preload();
+
+objLoader=new THREE.OBJLoader();
+objLoader.setMaterials(materials);
+objLoader.setPath('');
+worldMat[i]=materials;//for setting values dynamically
+objLoader.load(objFile, function(object){
+object.position.set( positioner[i].x(),positioner[i].y(),positioner[i].z() );
+worldModel[i]=object;
+worldModel[i].scale.set(scale,scale,scale);
+
+worldModel[i].traverse( 
+function(child){
+if(child instanceof THREE.Mesh){
+child.castShadow=true;
+child.receiveShadow=true;
+}});
+
+if(isPhysical){
+triMeshBuilder(worldModel[i],worldScale,positioner[i]);
+}
+scene.add(worldModel[i]);
+
+
+}, onProgress, onError );
+});
+
+}//end obj world model loader
+
+
+//triMesh model loader
+function triMeshModelLoader(i,objFile,mtlFile,scale){
+
+var onProgress=function(xhr){ if(xhr.lengthComputable){
+var percentComplete=xhr.loaded / xhr.total * 100;
+console.log( Math.round(percentComplete, 2) + '% downloaded' );
+}};
+var onError=function(xhr ){};
+
+mtlLoader=new THREE.MTLLoader();
+mtlLoader.setPath( '' );
+
+mtlLoader.load(mtlFile, function(materials){
+materials.preload();
+
+objLoader=new THREE.OBJLoader();
+objLoader.setMaterials(materials);
+objLoader.setPath('');
+triMeshModelMat[i]=materials;
+objLoader.load(objFile, function(object){
+triMeshModel[i]=object;
+triMeshModel[i].scale.set(scale,scale,scale);
+
+triMeshModel[i].traverse( 
+function(child){
+if(child instanceof THREE.Mesh){
+child.castShadow=true;
+child.receiveShadow=true;
+}});
+
+triMeshBuilder(triMeshModel[i],worldScale,positioner[i]);
+scene.add(triMeshModel[i]);
+
+}, onProgress, onError );
+});
+
+}//end obj triMesh model loader
+
+
+
+function modifyCarMaterials(c){
+
+for(i=0;i<carMat[c].length;i++){
+if(typeof carMat[c][i]!=="undefined"){
+var m=carMat[c][i].materials;
+for(n in m){
+//console.log(n);
+
+
+//tires and undercarriage do not reflect
+if(n!='Material_#8t'&&n!='mat_3-van1t.jpg'&&n!='mat_1-moskvitch.jpgt'&&n!='Material_#33t'&&n!='mat_2-humvee_desert_tire_diffuse.jpgt'&&n!=='mat_0-taxi_cab.jpgt'){
+m[n].envMap=cubeReflect;
+m[n].shininess=900;
+}else{m[n].shininess=0;}
+
+
+if(n=='Material_#294'||n=='Material_#56'||n=='mat_0-taxi_cab.jpg'){
+m[n].bumpMap=m[n].map;
+m[n].bumpScale=.005;
+}
+
+if(n=='Material_#8'){
+m[n].bumpMap=m[n].map;
+m[n].bumpScale=.003;
+m[n].side=THREE.DoubleSide;
+}
+
+
+if(n=='mat_3-van1.jpg.001'||n=='mat_0-humvee_desert_body_diffuse.jpg'){
+m[n].bumpMap=m[n].map;
+m[n].bumpScale=.005;
+m[n].side=THREE.DoubleSide;
+}
+
+if(n=='mat_0-moskvitch.jpg'||n=='mat_1-moskvitch.jpg'||n=='mat_0-taxi_cab.jpg'){
+m[n].side=THREE.DoubleSide;
+}
+
+m[n].specular.setHex(0x131313);
+m[n].needsUpdate=true;
+
+}}}}//end modify car materials
+
+
+function modifyWorldMaterials(){
+for(i=0;i<worldMat.length;i++){
+if(typeof worldMat[i]!=="undefined"){
+var m=worldMat[i].materials;
+for(n in m){
+
+m[n].bumpMap=m[n].map;
+m[n].bumpScale=.6;
+m[n].shininess=200;
+m[n].specular.setHex(0x020202);
+//m[n].side=THREE.DoubleSide; //for seeing size of shadowmap on world
+m[n].needsUpdate=true;
+
+}}}}//end modify world materials
+
+
+function resetAllCars(){
+resettingCars=true;
+for(var i=0;i<numWorldModels;i++){
+
+positioner[i].setX(positionerSave[i].x());
+positioner[i].setY(positionerSave[i].y());
+positioner[i].setZ(positionerSave[i].z());
+worldModel[i].position.set( positionerSave[i].x(), -38, positionerSave[i].z() );
+
+worldHidden[i]=false;
+worldMat[i].materials.w3.opacity=1;
+worldMat[i].materials.w3.needsUpdate=true;
+
+triMeshBodyTrans.setIdentity();
+triMeshBodyTrans.setOrigin(positioner[i]);
+triMeshBody[i].setWorldTransform(triMeshBodyTrans);
+}
+
+
+scoreUpdated[0]=false;
+score(0);
+
+m_carChassis[cci].getMotionState().getWorldTransform(chassisWorldTrans[cci]);
+carPos[cci]=chassisWorldTrans[cci].getOrigin();
+
+
+for(var c=0;c<numCars;c++){
+resetVehicle(c);
+coordi[c]=0;
+carPlaces[c].place=0;
+
+
+for(var i=0;i<numCoords;i++){
+if(c>0&&allCoordSame){
+coordx[c][i]=coordx[0][i];
+coordz[c][i]=coordz[0][i];
+}else{
+coordx[c][i]=randRange(-coordRange,coordRange);
+coordz[c][i]=randRange(-coordRange,coordRange);
+}}
+
+}//end num cars loop
+
+if(chaseCammer){chaseStarter=true;}
+
+mandalaSet=false;
+decalRayCast();
+}//end reset all cars
+
+
+function switchCars(){
+carModel[cci][0].children[0].remove(engineSound);
+carModel[cci][0].children[0].remove(skidSound);
+carModel[cci][0].children[0].remove(hitSound);
+carModel[cci][0].children[0].remove(hitSound2);
+carModel[cci][0].children[0].remove(hitSound3);
+carModel[cci][0].children[0].remove(hitSound4);
+carModel[cci][0].children[0].remove(hitSound5);
+carModel[cci][0].children[0].remove(popSound);
+
+cci++;if(cci>=numCars){cci=0;}
+dirLight.target=carModel[cci][0];
+
+carModel[cci][0].children[0].add(engineSound);
+carModel[cci][0].children[0].add(skidSound);
+carModel[cci][0].children[0].add(hitSound);
+carModel[cci][0].children[0].add(hitSound2);
+carModel[cci][0].children[0].add(hitSound3);
+carModel[cci][0].children[0].add(hitSound4);
+carModel[cci][0].children[0].add(hitSound5);
+carModel[cci][0].children[0].add(popSound);
+
+moveCarForward[cci]=false;
+moveCarBackward[cci]=false;
+gVehicleSteering[cci]=0;
+steerCarLeft[cci]=false; 
+steerCarRight[cci]=false; 
+
+if(positioner[decalWorldID].x()!=positionerSave[decalWorldID].x()||positioner[decalWorldID].y()!=positionerSave[decalWorldID].y()){resetAllCars();resetAllCars();}
+if(camid==2){camSwitcher(1);}
+if(chaseCammer){chaseStarter=true;}
+mandalaSet=false;decalRayCast();
+}//end switch cars
+
+
+function onWindowResize(event){
+SCREEN_HEIGHT=window.innerHeight*heightLimit;
+SCREEN_WIDTH =window.innerWidth*widthLimit;
+renderer.setSize( SCREEN_WIDTH, SCREEN_HEIGHT );
+camera.aspect=SCREEN_WIDTH / SCREEN_HEIGHT;
+camera.updateProjectionMatrix();
+if(showMui){
+muiSwitch();muiSwitch(); //twice for vertical scroll bar
+}
+if(showShortcuts){
+shortcutSwitch();shortcutSwitch();
+}
+}//end on window resize
+
+
+function animate(){
+setTimeout(function(){
+requestAnimationFrame(animate);
+if(!pauser){
+
+//fade and delete decals after some ticks
+for(i=0;i<decals.length;i++){
+if(decals[i]!=null){
+decals[i].material.opacity-=.001;
+if(decals[i].material.opacity<0){
+scene.remove(decals[i]);
+decals[i]=null;
+}}}
+
+bulletStep();
+
+if(typeof carModel[numCars-1][0]!=="undefined"){
+
+if(!loadingDone){
+timely2=setTimeout("resetAllCars();soundListener.setMasterVolume(1);document.body.removeChild(el('loadiv'));container.style.paddingLeft='0px';container.style.paddingTop='0px';renderer.setSize( SCREEN_WIDTH, SCREEN_HEIGHT);el('opener').style.visibility='visible';container.focus();document.body.style.backgroundImage='none';decalRayCast();",9000);
+loadingDone=true;
+}
+
+render();
+if(showFPS){stats.update();}
+}//end ! undefined
+}//end !pauser
+ 
+}, 1000 / framesPerSecond);
+}//end animate
+
+function render(){
+dt=clock.getDelta();
+if(!camStop){camAndKeys.update(dt);}
+renderer.render(scene, camera);
+}//end render
+
+
+
+</script>
+<div id="tester" style="z-index:10000;position:absolute;top:0px;left:0px;color:white;background-color:black;font-family:monospace;font-size:20px;"></div>
+
+<div id="opener" style="visibility:hidden;padding-left:6px;padding-bottom:2px;margin:2px;width:20px;height:20px;border:1px solid black;z-index:100002;position:fixed;bottom:0px;left:0px;color:black;background-color:white;font-family:monospace;font-size:20px;font-weight:bold;opacity:.5;cursor:pointer;" onclick="muiSwitch();" >?</div>
+
+<div id="score" style="border-radius: 8px;visibility:hidden;padding:6px;border:1px solid white;z-index:100001;position:fixed;bottom:0px;left:32px;color:white;background-color:black;font-family:monospace;font-size:16px;opacity:.7;">
+</div>
+
+
+<div id="shortcuts" style="border-radius: 8px;z-index:10001;overflow-y:auto;position:absolute;top:0px;left:0px;color:white;background-color:black;font-family:monospace;font-size:12x;visibility:hidden;opacity:.9;border:1px solid white;">
+<div style="padding:20px;">
+<span style="float:right;color:white;background-color:black;font-family:monospace;font-size:20px;cursor:pointer;font-weight:bold;" onclick="shortcutSwitch();">x</span>
+Up Arrow: Forward<BR>
+Down Arrow: Reverse<BR>
+Left Arrow: Steer Left<BR>
+Right Arrow: Steer Right<BR>
+SpaceBar: Brake<BR>
+1: Inspection Camera<BR>
+2: Follow Camera<BR>
+3: Stop Camera<BR>
+4: Switch Cars<BR>
+5: Fog<BR>
+6: FPS<BR>
+7: Robo Cars<BR>
+8: Be a Robot<BR>
+9: Reset All Cars<BR>
+H: Car Tuner<BR>
+M: Mute<BR>
+L: Score<BR>
+Inspection Camera Only:
+<ul>
+<li>Page Up: Raise Camera
+<li>Page Down: Lower Camera
+<li>Scroll: Camera Distance
+<li>Left Mouse: Orbit Car
+<li>Right Mouse: Tilt Camera
+<li>Z+Scroll: Camera Height
+</ul>
+Follow Camera Only:
+<ul>
+<li>N: Zoom In
+<li>B: Zoom Out
+</ul>
+U: Switch Worlds<BR>
+Alt: Pause<BR>
+K: Shortcuts<BR>
+I: Hide Question Mark<BR>
+P: Options
+</div>
+</div>
+
+
+
+<div id="mui" style="overflow-y:auto;position:absolute;top:0px;left:0px;color:white;background-color:transparent;font-family:monospace;font-size:20px;visibility:hidden;opacity:.8;">
+
+<div id="button3" style="border-radius: 6px;color:white;background-color:#000000;font-family:monospace;border:1px solid white;opacity:1;width:200px;padding:2px;margin:4px;text-align:center;cursor:pointer;" onclick="switchCars();" >Switch Cars</div>
+
+<div id="button0" style="border-radius: 6px;color:white;background-color:#000000;font-family:monospace;border:1px solid white;opacity:1;width:200px;padding:2px;margin:4px;text-align:center;cursor:pointer;" onclick="camSwitcher(0);" >Inspection Camera</div>
+
+<div id="button1" style="border-radius: 6px;color:white;background-color:#000000;font-family:monospace;border:1px solid white;opacity:1;width:200px;padding:2px;margin:4px;text-align:center;cursor:pointer;" onclick="camSwitcher(1);" >Follow Camera</div>
+
+<div id="button2" style="border-radius: 6px;color:white;background-color:#000000;font-family:monospace;border:1px solid white;opacity:1;width:200px;padding:2px;margin:4px;text-align:center;cursor:pointer;" onclick="camSwitcher(2);" >Stop Camera</div>
+
+<div id="button4" style="border-radius: 6px;color:white;background-color:#000000;font-family:monospace;border:1px solid white;opacity:1;width:200px;padding:2px;margin:4px;text-align:center;cursor:pointer;" onclick="roboCars=!roboCars;for(var k=0;k<numCars;k++){moveCarForward[k]=false;}" >Robo Cars</div>
+
+<div id="button5" style="border-radius: 6px;color:white;background-color:#000000;font-family:monospace;border:1px solid white;opacity:1;width:200px;padding:2px;margin:4px;text-align:center;cursor:pointer;" onclick="iamaRobot=!iamaRobot;moveCarForward[cci]=false;steerCarLeft[cci]=false;steerCarRight[cci]=false;" >Be a Robot</div>
+
+
+<div id="button6" style="border-radius: 6px;color:white;background-color:#000000;font-family:monospace;border:1px solid white;opacity:1;width:200px;padding:2px;margin:4px;text-align:center;cursor:pointer;" onclick="resetAllCars();" >Reset All Cars</div>
+
+<div id="button7" style="border-radius: 6px;color:white;background-color:#000000;font-family:monospace;border:1px solid white;opacity:1;width:200px;padding:2px;margin:4px;text-align:center;cursor:pointer;" onclick="dat.GUI.toggleHide();guiF2.closed=true;guiF2.closed=false;" >Car Tuner</div>
+
+<div id="button8" style="border-radius: 6px;color:white;background-color:#000000;font-family:monospace;border:1px solid white;opacity:1;width:200px;padding:2px;margin:4px;text-align:center;cursor:pointer;" onclick="showFPS=!showFPS;statsSwitcher();" >FPS</div>
+
+<div id="button9" style="border-radius: 6px;color:white;background-color:#000000;font-family:monospace;border:1px solid white;opacity:1;width:200px;padding:2px;margin:4px;text-align:center;cursor:pointer;" onclick="switchWorlds();" >Switch Worlds</div>
+
+<div id="button10" style="border-radius: 6px;color:white;background-color:#000000;font-family:monospace;border:1px solid white;opacity:1;width:200px;padding:2px;margin:4px;text-align:center;cursor:pointer;" onclick="shortcutSwitch();" >ShortCut Keys</div>
+
+<div id="button11" style="border-radius: 6px;color:white;background-color:#000000;font-family:monospace;border:1px solid white;opacity:1;width:200px;padding:2px;margin:4px;text-align:center;cursor:pointer;" onclick="toggleScore();" >Score</div>
+
+<div id="button12" style="border-radius: 6px;color:white;background-color:#000000;font-family:monospace;border:1px solid white;opacity:1;width:200px;padding:2px;margin:4px;text-align:center;cursor:pointer;" onclick="muiSwitch();" >&nbsp;&nbsp;Close/Open(P)
+
+<span style="display:inline-block;padding:0px;margin:0px;display:block;border:1px solid gray;width:16px;height:16px;float:right;color:white;background-color:transparent;font-family:monospace;font-size:14px;cursor:pointer;font-weight:bold;text-align:center;">x</span>
+</div>
+
+
+</div>
+
+<script>
+
+
+var numButtons=13;
+for(var i=0;i<numButtons;i++){setButtonColors('button'+i);}
+
+function setButtonColors(divid){
+el(divid).onmouseover=function(){this.style.backgroundColor='#535353';};
+el(divid).onmouseout=function(){this.style.backgroundColor='#000000';};
+el(divid).onmousedown=function(){this.style.backgroundColor='#787878';};
+el(divid).onmouseup=function(){this.style.backgroundColor='#535353';};
+
+}//end set button colors
+
+
+function score(c){
+if(showScore&&!scoreUpdated[c]){ 
+scoreUpdated[c]=true;
+var scoreList='';
+carPlaces.sort(sortPlaces);
+for(var k=0;k<numCars;k++){
+if(carPlaces[k].name==carNames[cci]){
+scoreList+='<span style="color:yellow;">'+carPlaces[k].name+': '+carPlaces[k].place+'</span><BR>';
+}else{
+scoreList+=carPlaces[k].name+': '+carPlaces[k].place+'<BR>';
+}
+}
+da('score', scoreList);
+}//end if show score
+}//end score
+
+
+function camSwitcher(i){
+camid=i;
+switch(camid){
+case 0: //follow car closely, but without following tilt of car
+if(!camFollowCar){camFollowCar=true;chaseCammer=false;dirLight.target=carModel[cci][0];}
+break;
+case 1: // follow car loosely, but follow tilt of car 
+if(!chaseCammer){
+chaseCammer=true;
+chaseStarter=true; 
+camFollowCar=false;
+dirLight.target=carModel[cci][0];
+}
+break;
+case 2: //stopped camera, still looks at controlled car
+if(camFollowCar||chaseCammer){
+camFollowCar=false;
+chaseCammer=false; 
+dirLight.target=camera;
+}else{
+camid=1;
+chaseCammer=true;
+chaseStarter=true; 
+camFollowCar=false;
+dirLight.target=carModel[cci][0];
+}
+break;
+}
+
+}//end cam switcher
+
+
+function muiSwitch(){
+showMui=!showMui;
+if(showMui){
+var muiWidth='220px';
+var muiHeight=SCREEN_HEIGHT*.9;
+el('mui').style.visibility='visible';
+el('mui').style.width=muiWidth+'px';
+el('mui').style.height=muiHeight+'px';
+el('mui').style.left='20px';
+el('mui').style.top=SCREEN_HEIGHT/2-muiHeight/2+'px';
+}else{
+el('mui').style.visibility='hidden';
+}
+}//end mui switch
+
+function shortcutSwitch(){
+showShortcuts=!showShortcuts;
+if(showShortcuts){
+var scWidth=400;
+var scHeight=SCREEN_HEIGHT*.8;
+el('shortcuts').style.visibility='visible';
+el('shortcuts').style.width=scWidth+'px';
+el('shortcuts').style.height=scHeight+'px';
+el('shortcuts').style.left=SCREEN_WIDTH/2-scWidth/2+'px';
+el('shortcuts').style.top=SCREEN_HEIGHT/2-scHeight/2+'px';
+el('shortcuts').style.visibility='visible';
+}else{el('shortcuts').style.visibility='hidden';}
+}//end short cut switch
+
+
+function decalRayCast(){
+if(typeof worldModel[decalWorldID].children[0]!=="undefined"&&typeof worldMat[0].materials.w3!=="undefined"){
+
+
+var cp=new Ammo.btVector3(coordx[cci][coordi[cci]], 600  ,coordz[cci][coordi[cci]]);
+var cpDownRayDir=new Ammo.btVector3(cp.x(), (cp.y()-2000), cp.z());
+var cpDownRay=new Ammo.ClosestRayResultCallback(cp,cpDownRayDir);
+dynamicsWorld.rayTest(cp, cpDownRayDir, cpDownRay);
+
+
+if(cpDownRay.hasHit()){
+//decalsMandala.forEach( function(d){scene.remove(d);} );
+for(var i=0;i<decalsMandala.length;i++){
+scene.remove(decalsMandala[i]);
+}
+decalsMandala=[];
+var tp=cpDownRay.get_m_hitPointWorld();
+var tp3=new THREE.Vector3(tp.x(), tp.y(), tp.z());
+decalPosition.copy(tp3);
+
+var md=new THREE.Mesh(new THREE.DecalGeometry( worldModel[decalWorldID].children[0], decalPosition, decalOrientation, decalSizer ), decalMaterialMandala );
+decalsMandala.push(md);
+md.receiveShadow=true;
+scene.add(md);
+
+markerSphere.position.set(decalPosition.x,decalPosition.y+15,decalPosition.z);
+pointLight.position.set( decalPosition.x,decalPosition.y+50,decalPosition.z );
+
+Ammo.destroy(tp); tp=null;
+
+mandalaSet=true;
+
+}//end have hit
+
+Ammo.destroy(cp); cp=null;
+Ammo.destroy(cpDownRayDir); cpDownRayDir=null;
+Ammo.destroy(cpDownRay); cpDownRay=null;
+
+}//! undefined
+}//end decal ray cast
+
+function toggleScore(){
+showScore=!showScore;
+for(var c=0;c<numCars;c++){ score(c);}
+if(showScore){el('score').style.visibility='visible';}else{el('score').style.visibility='hidden';}
+}//end toggle score
+
+
+muiSwitch();
+shortcutSwitch();
+</script>
+</body>
+</html>
